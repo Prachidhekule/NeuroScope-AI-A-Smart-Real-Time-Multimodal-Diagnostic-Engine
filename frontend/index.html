@@ -1,0 +1,2007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>NeuroScope AI | Parkinson's Voice & Motion Analysis</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* ========== BASE STYLES ========== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      transition: background-color 0.4s ease, color 0.3s ease;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body.dark {
+      background: #050510;
+      color: #e2e8f0;
+    }
+
+    body.dark .glass-panel {
+      background: rgba(8, 12, 22, 0.65);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(34, 211, 238, 0.15);
+      box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    body.dark .glass-nav {
+      background: rgba(3, 6, 15, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+    }
+
+    body.dark .camera-placeholder {
+      background: linear-gradient(135deg, #0a0f1a, #010205);
+      border: 1px dashed #22d3ee88;
+    }
+
+    body.dark .upload-card {
+      background: rgba(8, 15, 25, 0.5);
+      border: 1px solid rgba(34, 211, 238, 0.2);
+    }
+
+    body.dark .modal-content {
+      background: #0a0f1a;
+      border: 1px solid #22d3ee33;
+    }
+
+    body.dark .facial-result-card {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.1));
+      border: 1px solid rgba(34, 211, 238, 0.3);
+    }
+
+    body.light {
+      background: #e8edf5;
+      color: #0f172a;
+    }
+
+    body.light .glass-panel {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
+
+    body.light .glass-nav {
+      background: rgba(255, 255, 255, 0.95);
+      border-bottom: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    body.light .camera-placeholder {
+      background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+      border: 1px dashed #06b6d4;
+    }
+
+    body.light .upload-card {
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
+
+    body.light .modal-content {
+      background: #ffffff;
+      border: 1px solid #0891b2;
+    }
+
+    body.light .facial-result-card {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(139, 92, 246, 0.08));
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    body.dark ::-webkit-scrollbar-track {
+      background: #0a0c15;
+    }
+
+    body.dark ::-webkit-scrollbar-thumb {
+      background: #22d3ee;
+      border-radius: 20px;
+    }
+
+    body.light ::-webkit-scrollbar-track {
+      background: #cbd5e1;
+    }
+
+    body.light ::-webkit-scrollbar-thumb {
+      background: #0891b2;
+      border-radius: 20px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(105deg, #06b6d4, #8b5cf6);
+      transition: all 0.35s ease;
+      box-shadow: 0 8px 20px -6px rgba(6, 182, 212, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    @media (hover: hover) {
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 20px 30px -10px rgba(6, 182, 212, 0.5);
+      }
+    }
+
+    .history-item {
+      transition: all 0.25s ease;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      border-radius: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .history-item:active {
+      transform: translateX(3px);
+    }
+
+    .toast-notify {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      backdrop-filter: blur(20px);
+      padding: 12px 20px;
+      border-radius: 60px;
+      z-index: 200;
+      font-weight: 600;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      max-width: 90vw;
+    }
+
+    @media (max-width: 640px) {
+      .toast-notify {
+        font-size: 0.75rem;
+        padding: 10px 16px;
+        white-space: normal;
+        text-align: center;
+      }
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      border-radius: 1.5rem;
+      overflow: hidden;
+      box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.4);
+      aspect-ratio: 4 / 3;
+      background: #000;
+    }
+
+    body.dark .video-container {
+      background: #000000aa;
+      border: 1px solid rgba(34, 211, 238, 0.25);
+    }
+
+    body.light .video-container {
+      background: #ffffffcc;
+      border: 1px solid #0891b2;
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      display: block;
+    }
+
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: block;
+    }
+
+    .camera-placeholder {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: linear-gradient(135deg, #0a0f1a, #010205);
+      z-index: 10;
+    }
+
+    .video-active .camera-placeholder {
+      display: none;
+    }
+
+    .facial-result-card {
+      border-radius: 1.5rem;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .risk-high {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid #ef4444;
+    }
+
+    .risk-moderate {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border: 1px solid #f59e0b;
+    }
+
+    .risk-low {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid #10b981;
+    }
+
+    .nav-link {
+      transition: all 0.2s;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .theme-toggle {
+      border-radius: 40px;
+      padding: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    body.dark .theme-toggle {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    body.light .theme-toggle {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    section {
+      scroll-margin-top: 80px;
+    }
+
+    #particles-container {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .molecular-particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      animation: floatMolecular linear infinite;
+    }
+
+    body.dark .molecular-particle {
+      background: radial-gradient(circle, #22d3ee, #0891b2, transparent);
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+    }
+
+    body.light .molecular-particle {
+      background: radial-gradient(circle, #06b6d4, #0891b2, transparent);
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+    }
+
+    @keyframes floatMolecular {
+      0% {
+        transform: translateY(0px) translateX(0px) scale(1);
+        opacity: 0;
+      }
+      15% {
+        opacity: 0.7;
+      }
+      70% {
+        opacity: 0.4;
+      }
+      100% {
+        transform: translateY(-500px) translateX(120px) scale(0.5);
+        opacity: 0;
+      }
+    }
+
+    .developer-card {
+      position: relative;
+      transition: all 0.45s cubic-bezier(0.2, 0.9, 0.4, 1.2);
+      border-radius: 1.5rem;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .developer-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+      transition: left 0.6s ease;
+      z-index: -1;
+    }
+
+    .developer-card:hover::before {
+      left: 100%;
+    }
+
+    .developer-card:hover {
+      transform: translateY(-12px);
+    }
+
+    body.dark .developer-card:hover {
+      border-color: #22d3ee;
+      box-shadow: 0 30px 45px -20px rgba(34, 211, 238, 0.5), inset 0 1px 0 rgba(34, 211, 238, 0.2);
+    }
+
+    body.light .developer-card:hover {
+      border-color: #0891b2;
+      box-shadow: 0 30px 45px -20px rgba(6, 182, 212, 0.4);
+    }
+
+    .avatar-3d {
+      transition: all 0.4s ease;
+      position: relative;
+      background-size: cover;
+    }
+
+    .developer-card:hover .avatar-3d {
+      transform: scale(1.08);
+    }
+
+    body.dark .developer-card:hover .avatar-3d {
+      box-shadow: 0 0 30px rgba(34, 211, 238, 0.7);
+    }
+
+    .badge-role {
+      display: inline-block;
+      padding: 5px 14px;
+      border-radius: 30px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      backdrop-filter: blur(4px);
+      transition: all 0.3s ease;
+    }
+
+    body.dark .badge-role {
+      background: rgba(34, 211, 238, 0.2);
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      color: #a5f3fc;
+    }
+
+    body.light .badge-role {
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #0f172a;
+    }
+
+    .team-icon-pulse {
+      animation: teamPulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes teamPulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.4));
+        transform: scale(1);
+      }
+      50% {
+        filter: drop-shadow(0 0 25px rgba(34, 211, 238, 0.8));
+        transform: scale(1.05);
+      }
+    }
+
+    .social-icon {
+      transition: all 0.3s ease;
+      cursor: pointer;
+      opacity: 0.6;
+    }
+
+    .social-icon:hover {
+      opacity: 1;
+      transform: translateY(-3px) scale(1.1);
+    }
+
+    .wave-bar {
+      display: inline-block;
+      width: 4px;
+      height: 20px;
+      background: cyan;
+      margin: 0 2px;
+      animation: wave 0.8s infinite alternate;
+      border-radius: 4px;
+    }
+
+    @keyframes wave {
+      0% {
+        height: 8px;
+        opacity: 0.4;
+      }
+      100% {
+        height: 28px;
+        opacity: 1;
+      }
+    }
+
+    .hero-glow {
+      animation: heroPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes heroPulse {
+      0% {
+        text-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+      }
+      50% {
+        text-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
+      }
+      100% {
+        text-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+      }
+    }
+
+    .file-upload-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .file-upload-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-radius: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+
+    @media (max-width: 640px) {
+      .file-upload-label {
+        padding: 10px 12px;
+        font-size: 0.75rem;
+      }
+    }
+
+    body.dark .file-upload-label {
+      background: rgba(8, 12, 22, 0.8);
+      border: 1px solid rgba(34, 211, 238, 0.25);
+      color: #94a3b8;
+    }
+
+    body.light .file-upload-label {
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #475569;
+    }
+
+    .file-upload-label:active {
+      transform: scale(0.98);
+    }
+
+    .file-upload-input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .file-name {
+      font-size: 0.75rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 120px;
+    }
+
+    .upload-card {
+      border-radius: 1.25rem;
+      padding: 0.875rem;
+      transition: all 0.3s ease;
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+      }
+      100% {
+        box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+      }
+    }
+
+    .recording-active {
+      animation: pulse-ring 1.5s infinite;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .modal-content {
+      border-radius: 1.5rem;
+      padding: 1.5rem;
+      max-width: 400px;
+      width: 90%;
+      margin: 1rem;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .avatar-circle {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      font-weight: bold;
+      margin: 0 auto 1rem;
+    }
+
+    .user-menu {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .user-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 10px;
+      background: rgba(8, 12, 22, 0.95);
+      backdrop-filter: blur(12px);
+      border-radius: 1rem;
+      border: 1px solid rgba(34, 211, 238, 0.25);
+      min-width: 160px;
+      display: none;
+      z-index: 60;
+    }
+
+    .user-dropdown.show {
+      display: block;
+    }
+
+    .user-dropdown a {
+      display: block;
+      padding: 10px 16px;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-menu-btn {
+        display: block;
+      }
+      
+      .mobile-nav {
+        position: fixed;
+        top: 70px;
+        left: 0;
+        right: 0;
+        background: rgba(3, 6, 15, 0.98);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+        padding: 1rem;
+        z-index: 49;
+        transform: translateY(-100%);
+        transition: transform 0.3s ease;
+      }
+      
+      .mobile-nav.open {
+        transform: translateY(0);
+      }
+      
+      .mobile-nav a {
+        display: block;
+        padding: 12px 16px;
+        text-align: center;
+        font-size: 1rem;
+        font-weight: 500;
+      }
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 10vw, 5rem);
+    }
+
+    h2 {
+      font-size: clamp(1.5rem, 6vw, 2.5rem);
+    }
+
+    p {
+      font-size: clamp(0.875rem, 4vw, 1rem);
+    }
+
+    .history-modal .modal-content {
+      max-width: 700px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(34, 211, 238, 0.3);
+    }
+
+    .result-badge {
+      padding: 0.5rem 1rem;
+      border-radius: 2rem;
+      font-weight: bold;
+      display: inline-block;
+    }
+
+    .recording-timer {
+      font-family: monospace;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="dark">
+  <div id="particles-container" class="fixed inset-0 overflow-hidden pointer-events-none z-0"></div>
+
+  <!-- Navigation -->
+  <nav class="glass-nav fixed top-0 left-0 w-full z-50 px-4 sm:px-6 md:px-10 py-3 md:py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2 sm:gap-3">
+      <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-cyan-400 to-purple-600 animate-pulse shadow-lg"></div>
+      <span class="font-black text-base sm:text-xl md:text-2xl tracking-tighter bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-500 bg-clip-text text-transparent">NEUROSCOPE AI</span>
+      <span class="badge-ai hidden sm:inline-block ml-1 px-2 py-0.5 rounded-full text-[9px] sm:text-xs font-bold">v3.0</span>
+    </div>
+    
+    <div class="hidden md:flex gap-6 lg:gap-8 text-sm font-semibold items-center">
+      <a href="#home" class="nav-link">Home</a>
+      <a href="#intro" class="nav-link">Intro</a>
+      <a href="#facial" class="nav-link">Facial</a>
+      <a href="#voice" class="nav-link">Voice</a>
+      <a href="#motion" class="nav-link">Motion</a>
+      <a href="#combined" class="nav-link">Combined Result</a>
+      <a href="#" id="historyNavBtn" class="nav-link">History</a>
+      <a href="#team" class="nav-link">Team</a>
+      <div id="themeToggle" class="theme-toggle flex items-center gap-1 px-2 py-1 rounded-full">
+        <i data-lucide="sun" class="w-3.5 h-3.5 sm:w-4 sm:h-4" id="sunIcon"></i>
+        <i data-lucide="moon" class="w-3.5 h-3.5 sm:w-4 sm:h-4" id="moonIcon"></i>
+      </div>
+    </div>
+    
+    <button id="mobileMenuBtn" class="mobile-menu-btn md:hidden text-cyan-400 p-2">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+    
+    <div class="flex gap-2 sm:gap-3 items-center">
+      <div id="userMenu" class="user-menu">
+        <button id="authBtn" class="px-3 py-1.5 sm:px-5 sm:py-2 rounded-full border border-cyan-500 text-xs sm:text-sm font-semibold transition backdrop-blur-sm">🔐 Login</button>
+        <div id="userDropdown" class="user-dropdown">
+          <a id="profileMenuItem">👤 My Profile</a>
+          <a id="logoutMenuItem">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+  
+  <div id="mobileNav" class="mobile-nav md:hidden">
+    <a href="#home" class="nav-link block py-3 text-center">Home</a>
+    <a href="#intro" class="nav-link block py-3 text-center">Intro</a>
+    <a href="#facial" class="nav-link block py-3 text-center">Facial</a>
+    <a href="#voice" class="nav-link block py-3 text-center">Voice</a>
+    <a href="#motion" class="nav-link block py-3 text-center">Motion</a>
+    <a href="#combined" class="nav-link block py-3 text-center">Combined Result</a>
+    <a href="#" id="mobileHistoryNavBtn" class="nav-link block py-3 text-center">History</a>
+    <a href="#team" class="nav-link block py-3 text-center">Team</a>
+    <div class="flex justify-center gap-4 pt-3">
+      <div id="themeToggleMobile" class="theme-toggle flex items-center gap-2 px-3 py-1.5 rounded-full">
+        <i data-lucide="sun" class="w-4 h-4"></i>
+        <i data-lucide="moon" class="w-4 h-4"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modals -->
+  <div id="loginModal" class="modal"><div class="modal-content"><div class="text-center mb-4"><div class="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-full bg-gradient-to-tr from-cyan-400 to-purple-600 flex items-center justify-center text-xl sm:text-2xl font-bold">NA</div><h2 class="text-xl sm:text-2xl font-bold mt-2">Welcome Back</h2></div><input type="email" id="loginEmail" placeholder="Email" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-3 text-sm"><input type="password" id="loginPassword" placeholder="Password" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-4 text-sm"><button id="doLoginBtn" class="btn-primary w-full py-3 rounded-xl font-bold">Sign In</button><p class="text-center text-xs sm:text-sm mt-4">New user? <a id="showSignupLink" class="text-cyan-400 cursor-pointer">Create Account</a></p></div></div>
+  <div id="signupModal" class="modal"><div class="modal-content"><div class="text-center mb-4"><div class="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-full bg-gradient-to-tr from-cyan-400 to-purple-600 flex items-center justify-center text-xl sm:text-2xl font-bold">NA</div><h2 class="text-xl sm:text-2xl font-bold mt-2">Create Account</h2></div><input type="text" id="signupName" placeholder="Full Name" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-3 text-sm"><input type="email" id="signupEmail" placeholder="Email" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-3 text-sm"><input type="password" id="signupPassword" placeholder="Password (min 6)" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-4 text-sm"><button id="doSignupBtn" class="btn-primary w-full py-3 rounded-xl font-bold">Sign Up</button><p class="text-center text-xs sm:text-sm mt-4">Already have an account? <a id="showLoginLink" class="text-cyan-400 cursor-pointer">Sign In</a></p></div></div>
+  <div id="profileModal" class="modal"><div class="modal-content text-center"><div id="profileAvatar" class="avatar-circle">AD</div><h2 id="profileName" class="text-xl sm:text-2xl font-bold">User</h2><p id="profileEmail" class="text-gray-400 text-xs sm:text-sm">email@example.com</p><div class="mt-3 glass-panel p-2 sm:p-3"><p class="text-xs">Member Since</p><p id="profileSince" class="text-sm">—</p></div><div class="mt-2 glass-panel p-2 sm:p-3"><p class="text-xs">Total Analyses</p><p id="profileCount" class="text-2xl sm:text-3xl font-bold text-cyan-400">0</p></div><button id="closeProfileBtn" class="w-full mt-4 py-2 rounded-xl border border-gray-500 transition">Close</button></div></div>
+
+  <!-- History Modal -->
+  <div id="historyModal" class="modal history-modal">
+    <div class="modal-content">
+      <div class="history-header">
+        <h2 class="text-2xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">📋 Diagnostic Timeline</h2>
+        <button id="closeHistoryBtn" class="text-gray-400 hover:text-cyan-400 transition text-2xl">&times;</button>
+      </div>
+      <div id="historyModalListContainer" class="space-y-2 sm:space-y-3 max-h-[500px] overflow-y-auto pr-1 sm:pr-2"></div>
+      <div class="mt-4 pt-3 border-t border-cyan-500/20">
+        <button id="clearHistoryModalBtn" class="w-full border border-rose-500 px-4 py-2 rounded-xl text-rose-500 hover:bg-rose-950/40 transition text-sm">Clear All Records</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="relative z-10 pt-20 sm:pt-24 md:pt-28 pb-12 px-3 sm:px-4 md:px-8 max-w-7xl mx-auto">
+    
+    <!-- Hero Section -->
+    <section id="home" class="min-h-[80vh] sm:min-h-[85vh] flex items-center justify-center mb-12 sm:mb-20">
+      <div class="text-center max-w-5xl mx-auto px-2">
+        <div class="inline-flex items-center gap-1 sm:gap-2 bg-cyan-950/30 rounded-full px-3 py-1 sm:px-4 sm:py-1.5 border border-cyan-500/40 mb-4 sm:mb-6 backdrop-blur-sm">
+          <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-cyan-400 rounded-full animate-ping"></span>
+          <span class="text-[10px] sm:text-xs font-mono tracking-wider">REAL-TIME NEURO-SENSORY FUSION</span>
+        </div>
+        <h1 class="text-5xl sm:text-7xl md:text-8xl font-extrabold bg-gradient-to-r from-cyan-300 via-purple-400 to-fuchsia-500 bg-clip-text text-transparent hero-glow tracking-tight leading-tight">NeuroScope AI</h1>
+        <p class="text-gray-600 dark:text-gray-300 text-base sm:text-xl md:text-2xl mt-4 sm:mt-6 font-light px-2">Multimodal Parkinson's Disease Detection via <span class="text-cyan-300 font-bold border-b border-cyan-400">Voice, Facial & Motion Biomarkers</span></p>
+        <div class="flex flex-wrap gap-3 sm:gap-5 justify-center mt-8 sm:mt-12">
+          <a href="#intro" class="btn-primary px-5 py-2.5 sm:px-8 sm:py-3.5 rounded-full font-bold text-sm sm:text-lg shadow-2xl">📖 Learn More →</a>
+          <a href="#facial" class="px-5 py-2.5 sm:px-8 sm:py-3.5 rounded-full border border-cyan-500/60 hover:bg-cyan-500/10 transition font-semibold backdrop-blur-sm text-sm sm:text-lg">🎥 Start Screening</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Intro Section -->
+    <section id="intro" class="scroll-mt-20 sm:scroll-mt-24 mb-16 sm:mb-28">
+      <div class="glass-panel p-5 sm:p-7 md:p-10">
+        <div class="text-center mb-6 sm:mb-10">
+          <div class="inline-flex items-center gap-2 bg-cyan-500/20 rounded-full px-3 py-1 sm:px-4 sm:py-1 mb-3 sm:mb-4"><span class="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-cyan-400 rounded-full"></span><span class="text-[10px] sm:text-xs font-mono">ABOUT NEUROSCOPE AI</span></div>
+          <h2 class="text-2xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">Revolutionizing Early Parkinson's Detection</h2>
+          <p class="text-gray-400 mt-3 sm:mt-4 max-w-2xl mx-auto text-sm sm:text-base px-2">NeuroScope AI leverages cutting-edge artificial intelligence to detect early signs of Parkinson's disease through non-invasive, multi-modal biomarkers.</p>
+        </div>
+        <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-8 mt-6 sm:mt-8">
+          <div class="text-center"><div class="w-14 h-14 sm:w-20 sm:h-20 mx-auto rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center mb-3"><i data-lucide="mic" class="w-7 h-7 sm:w-10 sm:h-10 text-cyan-400"></i></div><h3 class="text-base sm:text-xl font-bold">Voice Analysis</h3><p class="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-2">Analyzes jitter, shimmer, HNR, and pitch variations</p></div>
+          <div class="text-center"><div class="w-14 h-14 sm:w-20 sm:h-20 mx-auto rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center mb-3"><i data-lucide="scan-face" class="w-7 h-7 sm:w-10 sm:h-10 text-cyan-400"></i></div><h3 class="text-base sm:text-xl font-bold">Facial Biomarkers</h3><p class="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-2">Tracks blink rate, smile symmetry, and head movement</p></div>
+          <div class="text-center"><div class="w-14 h-14 sm:w-20 sm:h-20 mx-auto rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center mb-3"><i data-lucide="activity" class="w-7 h-7 sm:w-10 sm:h-10 text-cyan-400"></i></div><h3 class="text-base sm:text-xl font-bold">Motion Analysis</h3><p class="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-2">Evaluates gait patterns, postural stability, and tremor</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FACIAL Section -->
+    <section id="facial" class="scroll-mt-20 sm:scroll-mt-24 mb-16 sm:mb-28">
+      <div class="glass-panel p-4 sm:p-7 md:p-9">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6 sm:mb-8">
+          <div class="flex items-center gap-3">
+            <i data-lucide="scan-face" class="w-8 h-8 sm:w-9 sm:h-9 text-cyan-500"></i>
+            <h2 class="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 to-purple-600 dark:from-cyan-300 dark:to-purple-400 bg-clip-text text-transparent">Facial Biomarker Analysis</h2>
+          </div>
+          <div id="facialStatus" class="text-xs px-3 py-1.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+            ⚡ Ready
+          </div>
+        </div>
+        
+        <div class="grid lg:grid-cols-2 gap-6 lg:gap-8">
+          <!-- Camera Column -->
+          <div>
+            <div id="videoContainer" class="video-container relative rounded-2xl overflow-hidden shadow-2xl" style="aspect-ratio: 4/3;">
+              <div id="cameraPlaceholder" class="camera-placeholder flex items-center justify-center flex-col">
+                <i data-lucide="camera" class="w-14 h-14 sm:w-20 sm:h-20 text-cyan-500 mb-3 opacity-50"></i>
+                <p class="text-sm text-gray-400">Camera ready</p>
+                <p class="text-xs text-gray-500 mt-1">Click "Start Analysis" to begin</p>
+              </div>
+              <video id="video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+              <canvas id="canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="mt-5">
+              <div class="flex justify-between text-xs mb-2">
+                <span class="text-gray-400">Analysis Progress</span>
+                <span id="progressPercent" class="text-cyan-400 font-mono">0%</span>
+              </div>
+              <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div id="progress" class="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all duration-500" style="width:0%"></div>
+              </div>
+            </div>
+            
+            <button id="startFacialBtn" class="btn-primary w-full py-3.5 rounded-xl font-bold text-base sm:text-lg mt-5 flex items-center justify-center gap-2">
+              <i data-lucide="play" class="w-5 h-5"></i>
+              Start Facial Analysis
+            </button>
+          </div>
+          
+          <!-- Results Column -->
+          <div>
+            <div id="facialResultContainer" class="facial-result-card p-5 sm:p-6 rounded-2xl min-h-[400px] flex flex-col">
+              <div id="facialInstruction" class="text-center mb-4 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+                <div id="instructionIcon" class="text-3xl mb-2">📸</div>
+                <div id="instructionText" class="text-sm font-medium text-cyan-300">Ready for analysis</div>
+                <div id="instructionDetail" class="text-xs text-gray-400 mt-1">Click "Start Analysis" to begin facial biomarker detection</div>
+              </div>
+              
+              <div id="facialOutput" class="flex-1">
+                <div class="text-center text-gray-400 py-8">
+                  <i data-lucide="scan" class="w-12 h-12 mx-auto mb-3 opacity-30"></i>
+                  <p class="text-sm">Facial analysis results will appear here</p>
+                  <p class="text-xs mt-1">The AI will analyze blink rate, smile symmetry, and head movement</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VOICE Section with Recording -->
+    <section id="voice" class="scroll-mt-20 sm:scroll-mt-24 mb-16 sm:mb-28">
+      <div class="glass-panel p-4 sm:p-7 md:p-9">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5 sm:mb-6">
+          <i data-lucide="mic-2" class="w-8 h-8 sm:w-9 sm:h-9 text-cyan-500"></i>
+          <h2 class="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 to-purple-600 dark:from-cyan-300 dark:to-purple-400 bg-clip-text text-transparent">Parkinson's Voice Analysis</h2>
+        </div>
+        <div class="grid md:grid-cols-2 gap-6 sm:gap-8">
+          <div>
+            <div class="bg-black/40 rounded-xl p-3 sm:p-4 mb-4">
+              <p class="text-[10px] sm:text-xs text-gray-400">📋 Protocol: Say "Ahhh" for 3-5 seconds or speak a sentence</p>
+            </div>
+            
+            <!-- Recording Section -->
+            <div class="glass-panel p-4 mb-4 text-center">
+              <div id="recordingTimer" class="recording-timer text-2xl font-mono text-cyan-400 mb-2">00:00</div>
+              <button id="startRecordingBtn" class="w-full bg-gradient-to-r from-red-600 to-red-500 py-3 rounded-xl transition text-sm sm:text-base font-semibold flex items-center justify-center gap-2">
+                <i data-lucide="mic" class="w-5 h-5"></i>
+                <span>🎙️ Start Recording (5s)</span>
+              </button>
+              <button id="stopRecordingBtn" class="w-full bg-gray-600 py-3 rounded-xl transition text-sm sm:text-base font-semibold flex items-center justify-center gap-2 mt-2" style="display:none;">
+                <i data-lucide="square" class="w-5 h-5"></i>
+                <span>⏹️ Stop Recording</span>
+              </button>
+              <div id="recordingStatus" class="text-xs text-gray-400 mt-2"></div>
+            </div>
+            
+            <!-- File Upload Alternative -->
+            <div class="file-upload-wrapper mb-3">
+              <label class="file-upload-label">
+                <span class="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"><i data-lucide="file-audio" class="w-4 h-4 sm:w-5 sm:h-5"></i> Or Upload Audio File</span>
+                <span id="audioFileName" class="file-name text-gray-400 text-[10px] sm:text-xs">No file</span>
+                <input type="file" id="audioFile" accept=".wav,audio/wav,audio/mpeg" class="file-upload-input">
+              </label>
+            </div>
+            
+            <button id="analyzeVoiceBtn" class="btn-primary w-full py-3 rounded-xl font-semibold text-sm sm:text-base">🔬 Analyze for Parkinson's</button>
+          </div>
+          <div>
+            <div id="voiceResultText" class="text-sm bg-black/20 p-4 rounded-xl min-h-[100px] border border-purple-500/20">🎧 Awaiting voice input</div>
+            <div class="mt-4">
+              <div class="flex justify-between text-[10px] sm:text-xs mb-1"><span>Diagnostic Confidence</span><span id="voiceConfidencePercent">0%</span></div>
+              <div class="h-2 bg-gray-700 rounded-full overflow-hidden"><div id="voiceConfidenceFill" class="w-0 h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all"></div></div>
+            </div>
+            <div class="mt-4 flex justify-center gap-1" id="waveformAnim" style="display:none;"><div class="wave-bar"></div><div class="wave-bar" style="animation-delay:0.1s"></div><div class="wave-bar" style="animation-delay:0.2s"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MOTION Section -->
+    <section id="motion" class="scroll-mt-20 sm:scroll-mt-24 mb-16 sm:mb-28">
+      <div class="glass-panel p-4 sm:p-7 md:p-9">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5 sm:mb-6">
+          <i data-lucide="activity" class="w-8 h-8 sm:w-9 sm:h-9 text-cyan-500"></i>
+          <h2 class="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 to-purple-600 dark:from-cyan-300 dark:to-purple-400 bg-clip-text text-transparent">Motion Analysis Suite</h2>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-6">
+          <div class="space-y-3 sm:space-y-4">
+            <div class="upload-card glass-panel p-3 sm:p-4">
+              <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center"><i data-lucide="standing" class="w-4 h-4 sm:w-5 sm:h-5 text-white"></i></div>
+                <h3 class="text-sm sm:text-lg font-bold text-cyan-300">🧍 Standing</h3>
+              </div>
+              <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                <label class="file-upload-label text-[10px] sm:text-xs py-2"><span><i data-lucide="bar-chart-3" class="w-3 h-3 sm:w-4 sm:h-4"></i> Accel CSV</span><span id="standingAccName" class="text-[8px] sm:text-xs">Choose</span><input type="file" id="standingAccCSV" accept=".csv" class="file-upload-input"></label>
+                <label class="file-upload-label text-[10px] sm:text-xs py-2"><span><i data-lucide="rotate-cw" class="w-3 h-3 sm:w-4 sm:h-4"></i> Gyro CSV</span><span id="standingGyroName" class="text-[8px] sm:text-xs">Choose</span><input type="file" id="standingGyroCSV" accept=".csv" class="file-upload-input"></label>
+              </div>
+            </div>
+            <div class="upload-card glass-panel p-3 sm:p-4">
+              <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center"><i data-lucide="armchair" class="w-4 h-4 sm:w-5 sm:h-5 text-white"></i></div>
+                <h3 class="text-sm sm:text-lg font-bold text-purple-300">🪑 Sitting</h3>
+              </div>
+              <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                <label class="file-upload-label text-[10px] sm:text-xs py-2"><span><i data-lucide="bar-chart-3" class="w-3 h-3 sm:w-4 sm:h-4"></i> Accel CSV</span><span id="sittingAccName" class="text-[8px] sm:text-xs">Choose</span><input type="file" id="sittingAccCSV" accept=".csv" class="file-upload-input"></label>
+                <label class="file-upload-label text-[10px] sm:text-xs py-2"><span><i data-lucide="rotate-cw" class="w-3 h-3 sm:w-4 sm:h-4"></i> Gyro CSV</span><span id="sittingGyroName" class="text-[8px] sm:text-xs">Choose</span><input type="file" id="sittingGyroCSV" accept=".csv" class="file-upload-input"></label>
+              </div>
+            </div>
+            <div class="upload-card glass-panel p-3 sm:p-4">
+              <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center"><i data-lucide="footprints" class="w-4 h-4 sm:w-5 sm:h-5 text-white"></i></div>
+                <h3 class="text-sm sm:text-lg font-bold text-emerald-300">🚶 Walking</h3>
+              </div>
+              <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                <label class="file-upload-label text-[10px] sm:text-xs py-2"><span><i data-lucide="bar-chart-3" class="w-3 h-3 sm:w-4 sm:h-4"></i> Accel CSV</span><span id="walkingAccName" class="text-[8px] sm:text-xs">Choose</span><input type="file" id="walkingAccCSV" accept=".csv" class="file-upload-input"></label>
+                <label class="file-upload-label text-[10px] sm:text-xs py-2"><span><i data-lucide="rotate-cw" class="w-3 h-3 sm:w-4 sm:h-4"></i> Gyro CSV</span><span id="walkingGyroName" class="text-[8px] sm:text-xs">Choose</span><input type="file" id="walkingGyroCSV" accept=".csv" class="file-upload-input"></label>
+              </div>
+            </div>
+            <button id="analyzeMotionBtn" class="btn-primary w-full py-3 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2"><i data-lucide="brain" class="w-4 h-4 sm:w-5 sm:h-5"></i> Analyze All Motion Data</button>
+          </div>
+          <div>
+            <div id="motionResultText" class="bg-black/40 border border-cyan-500/20 rounded-2xl p-4 sm:p-6 min-h-[350px] sm:min-h-[400px] flex flex-col items-center justify-center text-center">
+              <div class="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center mb-3 sm:mb-4"><i data-lucide="activity" class="w-8 h-8 sm:w-12 sm:h-12 text-cyan-400"></i></div>
+              <h3 class="text-base sm:text-xl font-bold text-cyan-300">Ready for Analysis</h3>
+              <p class="text-gray-400 mt-2 text-xs sm:text-sm">Upload CSV files from IMU sensors (accelerometer & gyroscope)</p>
+            </div>
+            <div id="motionMetrics" class="text-[10px] sm:text-xs mt-3 grid grid-cols-2 gap-2"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMBINED RESULT Section -->
+    <section id="combined" class="scroll-mt-20 sm:scroll-mt-24 mb-16 sm:mb-28">
+      <div class="glass-panel p-4 sm:p-7 md:p-9">
+        <div class="flex items-center gap-3 mb-6">
+          <i data-lucide="activity" class="w-8 h-8 sm:w-9 sm:h-9 text-cyan-500"></i>
+          <h2 class="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 to-purple-600 dark:from-cyan-300 dark:to-purple-400 bg-clip-text text-transparent">Combined Analysis Result</h2>
+        </div>
+        <div class="grid md:grid-cols-3 gap-4 mb-6">
+          <div class="glass-panel p-4 text-center"><i data-lucide="scan-face" class="w-8 h-8 text-cyan-400 mx-auto mb-2"></i><h3 class="font-bold text-sm">Facial Analysis</h3><p id="facialResultText" class="text-xs text-gray-400 mt-1">Not performed</p><p id="facialScore" class="text-lg font-bold text-cyan-300">—</p></div>
+          <div class="glass-panel p-4 text-center"><i data-lucide="mic" class="w-8 h-8 text-purple-400 mx-auto mb-2"></i><h3 class="font-bold text-sm">Voice Analysis</h3><p id="voiceResultText" class="text-xs text-gray-400 mt-1">Not performed</p><p id="voiceScore" class="text-lg font-bold text-purple-300">—</p></div>
+          <div class="glass-panel p-4 text-center"><i data-lucide="activity" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i><h3 class="font-bold text-sm">Motion Analysis</h3><p id="motionResultText" class="text-xs text-gray-400 mt-1">Not performed</p><p id="motionScore" class="text-lg font-bold text-emerald-300">—</p></div>
+        </div>
+        <div class="glass-panel p-6 text-center bg-gradient-to-r from-cyan-500/10 to-purple-500/10">
+          <h3 class="text-xl font-bold mb-3">🎯 Overall Parkinson's Risk Assessment</h3>
+          <div id="overallRisk" class="text-3xl font-bold mb-3">—</div>
+          <div class="w-full bg-gray-700 rounded-full h-3 mb-4 overflow-hidden"><div id="riskBar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: linear-gradient(90deg, #06b6d4, #8b5cf6)"></div></div>
+          <p id="recommendation" class="text-sm text-gray-400">Complete all three analyses to see combined risk assessment</p>
+          <button id="saveCombinedResultBtn" class="btn-primary px-6 py-2 rounded-full text-sm font-semibold mt-4">💾 Save Combined Result to History</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TEAM Section -->
+    <section id="team" class="scroll-mt-20 sm:scroll-mt-24 mb-16 sm:mb-24">
+      <div class="glass-panel p-4 sm:p-7 md:p-9 text-center">
+        <i data-lucide="users" class="w-10 h-10 sm:w-14 sm:h-14 text-cyan-500 mx-auto mb-3 sm:mb-4 team-icon-pulse"></i>
+        <h2 class="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 to-purple-600 dark:from-cyan-300 dark:to-purple-400 bg-clip-text text-transparent">Innovation Architects</h2>
+        <p class="text-gray-400 text-sm mb-8">Pioneering the future of non-invasive diagnostics</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-7 mt-6">
+          <div class="developer-card glass-panel p-5 sm:p-6 text-center">
+            <div class="avatar-3d w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-2xl sm:text-3xl font-black shadow-lg transition-all">AD</div>
+            <h3 class="text-base sm:text-xl font-bold mt-4 bg-gradient-to-r from-cyan-200 to-cyan-300 bg-clip-text text-transparent">Dr. Arjun Das</h3>
+            <p class="text-cyan-300 text-xs sm:text-sm mt-1 badge-role">Chief AI Scientist</p>
+            <div class="mt-3 text-[10px] text-gray-400 border-t border-cyan-500/30 pt-2">🧠 Neural Architecture | PhD Comp Vision</div>
+            <div class="flex justify-center gap-3 mt-3"><i data-lucide="linkedin" class="w-4 h-4 social-icon text-cyan-400"></i><i data-lucide="github" class="w-4 h-4 social-icon text-cyan-400"></i><i data-lucide="mail" class="w-4 h-4 social-icon text-cyan-400"></i></div>
+          </div>
+          <div class="developer-card glass-panel p-5 sm:p-6 text-center">
+            <div class="avatar-3d w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-full bg-gradient-to-br from-purple-400 to-pink-600 flex items-center justify-center text-2xl sm:text-3xl font-black shadow-lg">SP</div>
+            <h3 class="text-base sm:text-xl font-bold mt-4 bg-gradient-to-r from-purple-200 to-purple-300 bg-clip-text text-transparent">Sanya Patil</h3>
+            <p class="text-purple-300 text-xs sm:text-sm mt-1 badge-role">Lead ML Engineer</p>
+            <div class="mt-3 text-[10px] text-gray-400 border-t border-purple-500/30 pt-2">⚡ Model Optimization | Speech AI</div>
+            <div class="flex justify-center gap-3 mt-3"><i data-lucide="linkedin" class="w-4 h-4 social-icon text-purple-400"></i><i data-lucide="github" class="w-4 h-4 social-icon text-purple-400"></i><i data-lucide="mail" class="w-4 h-4 social-icon text-purple-400"></i></div>
+          </div>
+          <div class="developer-card glass-panel p-5 sm:p-6 text-center">
+            <div class="avatar-3d w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-2xl sm:text-3xl font-black shadow-lg">RJ</div>
+            <h3 class="text-base sm:text-xl font-bold mt-4 bg-gradient-to-r from-emerald-200 to-emerald-300 bg-clip-text text-transparent">Rahul Joshi</h3>
+            <p class="text-emerald-300 text-xs sm:text-sm mt-1 badge-role">Frontend Architect</p>
+            <div class="mt-3 text-[10px] text-gray-400 border-t border-emerald-500/30 pt-2">🎨 WebGL & 3D Fusion | Interactive UI</div>
+            <div class="flex justify-center gap-3 mt-3"><i data-lucide="linkedin" class="w-4 h-4 social-icon text-emerald-400"></i><i data-lucide="github" class="w-4 h-4 social-icon text-emerald-400"></i><i data-lucide="mail" class="w-4 h-4 social-icon text-emerald-400"></i></div>
+          </div>
+          <div class="developer-card glass-panel p-5 sm:p-6 text-center">
+            <div class="avatar-3d w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-2xl sm:text-3xl font-black shadow-lg">MS</div>
+            <h3 class="text-base sm:text-xl font-bold mt-4 bg-gradient-to-r from-amber-200 to-amber-300 bg-clip-text text-transparent">Meera Sharma</h3>
+            <p class="text-amber-300 text-xs sm:text-sm mt-1 badge-role">Clinical Analyst</p>
+            <div class="mt-3 text-[10px] text-gray-400 border-t border-amber-500/30 pt-2">📊 Biomarker Validation | Healthcare AI</div>
+            <div class="flex justify-center gap-3 mt-3"><i data-lucide="linkedin" class="w-4 h-4 social-icon text-amber-400"></i><i data-lucide="github" class="w-4 h-4 social-icon text-amber-400"></i><i data-lucide="mail" class="w-4 h-4 social-icon text-amber-400"></i></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="glass-panel p-5 sm:p-8 text-center mt-8 sm:mt-10">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6"><div><i data-lucide="shield-check" class="w-6 h-6 text-cyan-500 mx-auto mb-1"></i><p class="font-semibold text-xs sm:text-sm">HIPAA | GDPR</p></div><div><i data-lucide="zap" class="w-6 h-6 text-cyan-500 mx-auto mb-1"></i><p class="font-semibold text-xs sm:text-sm">Real-time AI</p></div><div><i data-lucide="globe" class="w-6 h-6 text-cyan-500 mx-auto mb-1"></i><p class="font-semibold text-xs sm:text-sm">Global Research</p></div></div>
+      <div class="border-t border-cyan-500/20 pt-5"><p class="text-[10px] sm:text-xs">© 2025 NeuroScope AI — Unified NeuroDiagnostics Platform | v3.0</p></div>
+    </footer>
+  </main>
+
+  <script>
+    // ========== UTILITY FUNCTIONS ==========
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'toast-notify';
+      toast.innerHTML = `✨ ${msg}`;
+      if (document.body.classList.contains('dark')) {
+        toast.style.background = '#1a1a2e';
+        toast.style.color = '#e2e8f0';
+      } else {
+        toast.style.background = '#ffffff';
+        toast.style.color = '#0f172a';
+      }
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 500);
+      }, 3000);
+    }
+
+    function createMolecularParticles() {
+      const container = document.getElementById('particles-container');
+      if (!container) return;
+      container.innerHTML = '';
+      for (let i = 0; i < 100; i++) {
+        let particle = document.createElement('div');
+        particle.classList.add('molecular-particle');
+        let size = Math.random() * 8 + 3;
+        particle.style.width = size + 'px';
+        particle.style.height = size + 'px';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = Math.random() * 100 + '%';
+        particle.style.animationDuration = `${Math.random() * 20 + 12}s`;
+        particle.style.animationDelay = `${Math.random() * 8}s`;
+        container.appendChild(particle);
+      }
+    }
+
+    function initMolecularBackground() {
+      createMolecularParticles();
+    }
+
+    function setTheme(theme) {
+      if (theme === 'light') {
+        document.body.classList.remove('dark');
+        document.body.classList.add('light');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.body.classList.remove('light');
+        document.body.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function updateProgressBar(progressElement, targetWidth, duration = 1000) {
+      if (!progressElement) return;
+      const startWidth = parseFloat(progressElement.style.width) || 0;
+      const difference = targetWidth - startWidth;
+      const startTime = performance.now();
+      
+      function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const newWidth = startWidth + (difference * progress);
+        progressElement.style.width = `${newWidth}%`;
+        const percentSpan = document.getElementById('progressPercent');
+        if (percentSpan) percentSpan.innerText = `${Math.round(newWidth)}%`;
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    function startWaveAnimation() {
+      const waveContainer = document.getElementById('waveformAnim');
+      if (waveContainer) waveContainer.style.display = 'flex';
+    }
+
+    function stopWaveAnimation() {
+      const waveContainer = document.getElementById('waveformAnim');
+      if (waveContainer) waveContainer.style.display = 'none';
+    }
+
+    // ========== AUTHENTICATION ==========
+    let currentUser = null;
+    let analysisHistory = JSON.parse(localStorage.getItem('neuroscope_history') || '[]');
+
+    function saveAuth() {
+      if (currentUser) {
+        localStorage.setItem('neuroscope_user', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('neuroscope_user');
+      }
+    }
+
+    function loadAuth() {
+      const saved = localStorage.getItem('neuroscope_user');
+      if (saved) {
+        currentUser = JSON.parse(saved);
+        updateAuthUI();
+      }
+    }
+
+    function updateAuthUI() {
+      const authBtn = document.getElementById('authBtn');
+      const userDropdown = document.getElementById('userDropdown');
+      
+      if (currentUser) {
+        authBtn.innerHTML = `👤 ${currentUser.name.split(' ')[0]}`;
+        authBtn.classList.remove('border-cyan-500');
+        authBtn.classList.add('border-purple-500', 'bg-purple-500/20');
+        if (userDropdown) userDropdown.classList.add('show');
+        
+        document.getElementById('profileName').innerText = currentUser.name;
+        document.getElementById('profileEmail').innerText = currentUser.email;
+        const avatarText = currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        document.getElementById('profileAvatar').innerText = avatarText;
+        document.getElementById('profileSince').innerText = new Date(currentUser.createdAt).toLocaleDateString();
+        document.getElementById('profileCount').innerText = analysisHistory.length;
+      } else {
+        authBtn.innerHTML = '🔐 Login';
+        authBtn.classList.add('border-cyan-500');
+        authBtn.classList.remove('border-purple-500', 'bg-purple-500/20');
+        if (userDropdown) userDropdown.classList.remove('show');
+      }
+    }
+
+    function handleLogin(email, password) {
+      const saved = localStorage.getItem(`user_${email}`);
+      if (saved) {
+        const user = JSON.parse(saved);
+        if (user.password === password) {
+          currentUser = user;
+          saveAuth();
+          updateAuthUI();
+          showToast(`Welcome back, ${user.name}!`);
+          return true;
+        } else {
+          showToast("Invalid password");
+          return false;
+        }
+      } else {
+        showToast("User not found");
+        return false;
+      }
+    }
+
+    function handleSignup(name, email, password) {
+      if (!name || !email || !password) {
+        showToast("All fields required");
+        return false;
+      }
+      if (password.length < 6) {
+        showToast("Password min 6 chars");
+        return false;
+      }
+      if (localStorage.getItem(`user_${email}`)) {
+        showToast("Email already exists");
+        return false;
+      }
+      
+      const newUser = { name, email, password: password, createdAt: new Date().toISOString() };
+      localStorage.setItem(`user_${email}`, JSON.stringify(newUser));
+      currentUser = newUser;
+      saveAuth();
+      updateAuthUI();
+      showToast(`Account created! Welcome ${name}`);
+      return true;
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      saveAuth();
+      updateAuthUI();
+      showToast("Logged out");
+    }
+
+    function renderHistoryModalList() {
+      const container = document.getElementById('historyModalListContainer');
+      if (!container) return;
+      
+      if (analysisHistory.length === 0) {
+        container.innerHTML = `<div class="glass-panel p-4 text-center text-gray-400 text-sm">🔬 No records yet.</div>`;
+        return;
+      }
+      
+      container.innerHTML = analysisHistory.slice(0, 50).map(item => `
+        <div class="glass-panel p-3 history-item flex justify-between items-start" data-id="${item.id}">
+          <div class="flex-1" onclick="viewDetail(${item.id})">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold">${item.type}</span>
+              <span class="font-bold text-xs sm:text-sm">${item.result}</span>
+              <span class="text-[8px] sm:text-xs text-gray-500">${item.timestamp}</span>
+            </div>
+            <div class="text-[8px] sm:text-xs mt-1">Confidence: ${item.confidence}%</div>
+          </div>
+          <button class="delete-history-btn text-red-500 text-[10px] sm:text-xs hover:text-red-700 ml-2" onclick="deleteEntry(${item.id}); event.stopPropagation();">🗑️</button>
+        </div>
+      `).join('');
+    }
+
+    function viewDetail(id) {
+      const item = analysisHistory.find(h => h.id === id);
+      if (item) {
+        alert(`🧠 NeuroScope Report\n${item.type}\nResult: ${item.result}\nConfidence: ${item.confidence}%`);
+      }
+    }
+
+    function deleteEntry(id) {
+      analysisHistory = analysisHistory.filter(h => h.id !== id);
+      localStorage.setItem('neuroscope_history', JSON.stringify(analysisHistory));
+      renderHistoryModalList();
+      updateAuthUI();
+      showToast("Deleted");
+    }
+
+    function addHistory(type, resultData) {
+      if (!currentUser) {
+        showToast("Please login to save results");
+        return false;
+      }
+      
+      const entry = {
+        id: Date.now(),
+        timestamp: new Date().toLocaleString(),
+        type: type,
+        result: resultData.primary,
+        confidence: resultData.confidence || 78
+      };
+      
+      analysisHistory.unshift(entry);
+      if (analysisHistory.length > 50) analysisHistory.pop();
+      localStorage.setItem('neuroscope_history', JSON.stringify(analysisHistory));
+      renderHistoryModalList();
+      updateAuthUI();
+      showToast(`${type} saved`);
+      return true;
+    }
+
+    // ========== API CONFIGURATION ==========
+    const API_BASE_URL = "http://127.0.0.1:8000";
+
+    let latestFacial = { result: null, confidence: null, details: null };
+    let latestVoice = { result: null, confidence: null };
+    let latestMotion = { result: null, confidence: null, allResults: {} };
+    let motionResults = { standing: null, sitting: null, walking: null };
+
+    function updateCombinedResult() {
+      const hasFacial = latestFacial.result !== null;
+      const hasVoice = latestVoice.result !== null;
+      const hasMotion = latestMotion.result !== null;
+      
+      if (hasFacial) {
+        document.getElementById('facialResultText').innerHTML = `<div class="text-base font-bold text-cyan-300">${latestFacial.result}</div>`;
+        const facialScoreEl = document.getElementById('facialScore');
+        if (facialScoreEl) facialScoreEl.innerText = `${latestFacial.confidence}%`;
+      }
+      
+      if (hasVoice) {
+        document.getElementById('voiceResultText').innerHTML = `<div class="text-base font-bold text-purple-300">🧠 ${latestVoice.result}</div>`;
+        document.getElementById('voiceScore').innerText = `${latestVoice.confidence}%`;
+      }
+      
+      if (hasMotion) {
+        document.getElementById('motionResultText').innerHTML = `<div class="text-base font-bold text-emerald-300">${latestMotion.result}</div>`;
+        document.getElementById('motionScore').innerText = `${latestMotion.confidence}%`;
+      }
+      
+      if (hasFacial && hasVoice && hasMotion) {
+        const avgConfidence = Math.round((latestFacial.confidence + latestVoice.confidence + latestMotion.confidence) / 3);
+        let riskLevel = '', riskClass = '';
+        
+        if (avgConfidence >= 70) {
+          riskLevel = '🔴 High Risk - Further Evaluation Recommended';
+          riskClass = 'risk-high';
+        } else if (avgConfidence >= 45) {
+          riskLevel = '⚠️ Moderate Risk - Monitor Symptoms';
+          riskClass = 'risk-moderate';
+        } else {
+          riskLevel = '✅ Low Risk - Normal Pattern';
+          riskClass = 'risk-low';
+        }
+        
+        document.getElementById('overallRisk').innerHTML = `<span class="result-badge ${riskClass}">${riskLevel}</span>`;
+        document.getElementById('riskBar').style.width = `${avgConfidence}%`;
+        document.getElementById('recommendation').innerHTML = `Overall Parkinson's Risk Confidence: ${avgConfidence}% based on multi-modal analysis`;
+      } else {
+        const completed = [hasFacial, hasVoice, hasMotion].filter(Boolean).length;
+        document.getElementById('overallRisk').innerHTML = '—';
+        document.getElementById('riskBar').style.width = '0%';
+        document.getElementById('recommendation').innerHTML = `Complete ${3 - completed} more analysis to see combined risk assessment`;
+      }
+      
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function saveCombinedResult() {
+      if (!currentUser) {
+        showToast("Please login first");
+        return;
+      }
+      
+      if (!latestFacial.result && !latestVoice.result && !latestMotion.result) {
+        showToast("No analysis results to save. Please perform at least one analysis first.");
+        return;
+      }
+      
+      const confidences = [latestFacial.confidence, latestVoice.confidence, latestMotion.confidence].filter(c => c !== null);
+      const avgConfidence = confidences.reduce((a, b) => a + b, 0) / confidences.length || 0;
+      let riskText = avgConfidence >= 70 ? "High Risk" : (avgConfidence >= 45 ? "Moderate Risk" : "Low Risk");
+      
+      addHistory("Combined Analysis", { primary: `Overall Risk: ${riskText}`, confidence: Math.round(avgConfidence) });
+    }
+
+    // ========== FACIAL ANALYSIS ==========
+    let faceMesh = null;
+    let cameraInstance = null;
+    let facialAnalysisActive = false;
+    let currentStream = null;
+    let blinkCount = 0, smileScores = [], headMovements = [];
+    let eyesClosed = false, currentStage = "idle", baselineEAR = 0;
+
+    function distance(a, b) {
+      return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+    }
+
+    function calculateEAR(lm) {
+      const v1 = distance(lm[159], lm[145]);
+      const v2 = distance(lm[158], lm[153]);
+      const h = distance(lm[33], lm[133]);
+      return (v1 + v2) / (2 * h);
+    }
+
+    function calculateSmile(lm) {
+      return distance(lm[61], lm[291]);
+    }
+
+    function updateFacialUI(title, subtitle) {
+      const instructionText = document.getElementById('instructionText');
+      const instructionDetail = document.getElementById('instructionDetail');
+      const instructionIcon = document.getElementById('instructionIcon');
+      const facialStatus = document.getElementById('facialStatus');
+      
+      if (instructionText) instructionText.innerText = title;
+      if (instructionDetail) instructionDetail.innerText = subtitle;
+      if (facialStatus) facialStatus.innerText = title;
+      
+      if (instructionIcon) {
+        if (title.includes("Calibration")) instructionIcon.innerHTML = "📐";
+        else if (title.includes("Blink")) instructionIcon.innerHTML = "👁";
+        else if (title.includes("Smile")) instructionIcon.innerHTML = "😊";
+        else if (title.includes("Head")) instructionIcon.innerHTML = "🔄";
+        else if (title.includes("Complete")) instructionIcon.innerHTML = "✅";
+        else instructionIcon.innerHTML = "📸";
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function stopCamera() {
+      if (cameraInstance) {
+        await cameraInstance.stop();
+        cameraInstance = null;
+      }
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+      }
+      const videoElement = document.getElementById('video');
+      if (videoElement) {
+        videoElement.srcObject = null;
+      }
+      const videoContainer = document.getElementById('videoContainer');
+      if (videoContainer) {
+        videoContainer.classList.remove('video-active');
+      }
+      const placeholder = document.getElementById('cameraPlaceholder');
+      if (placeholder) {
+        placeholder.style.display = 'flex';
+      }
+    }
+
+    async function initializeFaceMesh() {
+      if (faceMesh) return;
+      
+      faceMesh = new FaceMesh({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+      });
+      
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      
+      faceMesh.onResults(onFacialResults);
+    }
+
+    function onFacialResults(results) {
+      const canvasElement = document.getElementById('canvas');
+      const canvasCtx = canvasElement?.getContext('2d');
+      const videoElement = document.getElementById('video');
+      
+      if (!canvasElement || !canvasCtx || !videoElement) return;
+      
+      // Match canvas size to video
+      if (videoElement.videoWidth && videoElement.videoHeight) {
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+      }
+      
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      
+      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+      
+      const lm = results.multiFaceLandmarks[0];
+      
+      // Draw face mesh only on the face area
+      if (window.drawConnectors && window.FACEMESH_TESSELATION) {
+        drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: "#00FFFF", lineWidth: 0.8 });
+        drawConnectors(canvasCtx, lm, FACEMESH_CONTOURS, { color: "#8b5cf6", lineWidth: 0.5 });
+      }
+      
+      const ear = calculateEAR(lm);
+      const smile = calculateSmile(lm);
+      
+      if (currentStage === "calibration") {
+        baselineEAR += ear;
+        return;
+      }
+      
+      if (currentStage === "blink") {
+        const threshold = baselineEAR * 0.75;
+        if (ear < threshold && !eyesClosed) eyesClosed = true;
+        if (ear >= threshold && eyesClosed) { 
+          blinkCount++; 
+          eyesClosed = false; 
+        }
+      }
+      
+      if (currentStage === "smile") smileScores.push(smile);
+      if (currentStage === "head") headMovements.push(lm[1].x);
+    }
+
+    async function startFacialAnalysis() {
+      if (!currentUser) { 
+        showToast("Please login first"); 
+        return;
+      }
+      
+      if (facialAnalysisActive) return;
+      
+      // Stop any existing camera session first
+      await stopCamera();
+      
+      facialAnalysisActive = true;
+      
+      const videoElement = document.getElementById('video');
+      const canvasElement = document.getElementById('canvas');
+      const videoContainer = document.getElementById('videoContainer');
+      const outputDiv = document.getElementById('facialOutput');
+      const startBtn = document.getElementById('startFacialBtn');
+      
+      // Disable start button during analysis
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.5';
+      startBtn.innerHTML = '<i data-lucide="loader" class="w-5 h-5 animate-spin"></i> Analyzing...';
+      
+      blinkCount = 0; 
+      smileScores = []; 
+      headMovements = []; 
+      baselineEAR = 0; 
+      eyesClosed = false;
+      
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        currentStream = stream;
+        videoElement.srcObject = stream;
+        videoContainer.classList.add('video-active');
+        await videoElement.play();
+        
+        await initializeFaceMesh();
+        
+        // Create camera instance
+        cameraInstance = new Camera(videoElement, {
+          onFrame: async () => {
+            if (faceMesh && videoElement) {
+              await faceMesh.send({ image: videoElement });
+            }
+          },
+          width: 640,
+          height: 480
+        });
+        await cameraInstance.start();
+        
+        const progressBar = document.getElementById('progress');
+        
+        // Calibration
+        currentStage = "calibration";
+        updateFacialUI("📐 Calibration", "Keep face neutral for 5 seconds");
+        updateProgressBar(progressBar, 10, 1000);
+        await sleep(5000);
+        baselineEAR = baselineEAR / 150;
+        
+        // Blink Test
+        currentStage = "blink";
+        updateFacialUI("👁 Blink Test", "Blink naturally for 10 seconds");
+        updateProgressBar(progressBar, 30, 1000);
+        await sleep(10000);
+        
+        // Smile Test
+        currentStage = "smile";
+        updateFacialUI("😊 Smile Test", "Smile continuously for 10 seconds");
+        updateProgressBar(progressBar, 60, 1000);
+        await sleep(10000);
+        
+        // Head Test
+        currentStage = "head";
+        updateFacialUI("🔄 Head Test", "Move head left and right for 10 seconds");
+        updateProgressBar(progressBar, 80, 1000);
+        await sleep(10000);
+        
+        currentStage = "done";
+        updateProgressBar(progressBar, 100, 500);
+        
+        // Calculate results
+        const blinkRate = blinkCount * 6;
+        const avgSmile = smileScores.length ? smileScores.reduce((a, b) => a + b, 0) / smileScores.length : 0;
+        const headRange = headMovements.length ? Math.max(...headMovements) - Math.min(...headMovements) : 0;
+        
+        let risk = 15;
+        if (blinkRate < 10) risk += 25;
+        if (avgSmile < 0.20) risk += 25;
+        if (headRange < 0.12) risk += 25;
+        
+        let prediction = "✅ Normal Facial Activity";
+        let riskColor = "risk-low";
+        let textColor = "text-green-400";
+        if (risk > 45) { 
+          prediction = "⚠️ Mild Facial Deviation"; 
+          riskColor = "risk-moderate"; 
+          textColor = "text-yellow-400"; 
+        }
+        if (risk > 70) { 
+          prediction = "🚨 High Parkinson Risk"; 
+          riskColor = "risk-high"; 
+          textColor = "text-red-400"; 
+        }
+        
+        if (outputDiv) {
+          outputDiv.innerHTML = `
+            <div class="space-y-4">
+              <div class="text-center">
+                <div class="inline-block px-4 py-2 rounded-full ${riskColor} font-bold text-sm mb-3">Risk Score: ${risk}%</div>
+                <div class="font-black text-xl ${textColor}">${prediction}</div>
+              </div>
+              <div class="grid grid-cols-3 gap-3 text-center pt-3 border-t border-cyan-500/20">
+                <div>
+                  <div class="text-2xl">👁</div>
+                  <div class="text-xs text-gray-400">Blink Rate</div>
+                  <div class="font-bold text-cyan-300">${blinkRate.toFixed(1)}/min</div>
+                </div>
+                <div>
+                  <div class="text-2xl">😊</div>
+                  <div class="text-xs text-gray-400">Smile Score</div>
+                  <div class="font-bold text-purple-300">${avgSmile.toFixed(3)}</div>
+                </div>
+                <div>
+                  <div class="text-2xl">🔄</div>
+                  <div class="text-xs text-gray-400">Head Movement</div>
+                  <div class="font-bold text-emerald-300">${headRange.toFixed(3)}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        
+        latestFacial = { result: prediction, confidence: risk, details: { blinkRate, avgSmile, headRange } };
+        updateCombinedResult();
+        addHistory("Facial Analysis", { primary: prediction, confidence: risk });
+        
+        // Stop camera after analysis
+        await stopCamera();
+        
+        updateFacialUI("✅ Analysis Complete", "Results ready. Click 'Start Analysis' to test again.");
+        
+      } catch (error) {
+        console.error(error);
+        if (outputDiv) {
+          outputDiv.innerHTML = `<div class="text-red-400 text-center">❌ Camera error: ${error.message}<br>Please ensure camera permissions are granted.</div>`;
+        }
+      } finally {
+        facialAnalysisActive = false;
+        // Re-enable start button
+        startBtn.disabled = false;
+        startBtn.style.opacity = '1';
+        startBtn.innerHTML = '<i data-lucide="play" class="w-5 h-5"></i> Start Facial Analysis';
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
+    // ========== VOICE RECORDING ==========
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordingTimer = null;
+    let recordingSeconds = 0;
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function updateRecordingTimer() {
+      const timerElement = document.getElementById('recordingTimer');
+      if (timerElement) {
+        timerElement.textContent = formatTime(recordingSeconds);
+      }
+    }
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' });
+          
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(audioFile);
+          document.getElementById('audioFile').files = dataTransfer.files;
+          document.getElementById('audioFileName').innerText = 'recording.wav';
+          
+          showToast("Recording saved! Click 'Analyze' to process.");
+          
+          stream.getTracks().forEach(track => track.stop());
+          
+          document.getElementById('startRecordingBtn').style.display = 'flex';
+          document.getElementById('stopRecordingBtn').style.display = 'none';
+          document.getElementById('recordingStatus').innerHTML = '';
+          document.getElementById('recordingStatus').classList.remove('text-red-400');
+          
+          if (recordingTimer) clearInterval(recordingTimer);
+          recordingSeconds = 0;
+          updateRecordingTimer();
+        };
+        
+        mediaRecorder.start();
+        
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === 'recording') {
+            stopRecording();
+          }
+        }, 5000);
+        
+        recordingSeconds = 0;
+        updateRecordingTimer();
+        recordingTimer = setInterval(() => {
+          recordingSeconds++;
+          updateRecordingTimer();
+          if (recordingSeconds >= 5) {
+            clearInterval(recordingTimer);
+          }
+        }, 1000);
+        
+        document.getElementById('startRecordingBtn').style.display = 'none';
+        document.getElementById('stopRecordingBtn').style.display = 'flex';
+        document.getElementById('recordingStatus').innerHTML = '🔴 Recording... (5 seconds max)';
+        document.getElementById('recordingStatus').classList.add('text-red-400');
+        
+      } catch (error) {
+        console.error('Recording error:', error);
+        showToast("Microphone access denied. Please check permissions.");
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        if (recordingTimer) clearInterval(recordingTimer);
+      }
+    }
+
+    // ========== VOICE ANALYSIS ==========
+    async function performVoiceAnalysis() {
+      if (!currentUser) { showToast("Please login first"); return; }
+      
+      const audioFile = document.getElementById('audioFile').files[0];
+      if (!audioFile) { showToast("Please record or upload an audio file first"); return; }
+      
+      const voiceResultDiv = document.getElementById('voiceResultText');
+      voiceResultDiv.innerHTML = '<div class="text-cyan-300">🔬 Analyzing voice patterns...</div>';
+      startWaveAnimation();
+      
+      const formData = new FormData();
+      formData.append("file", audioFile);
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/predict`, { method: "POST", body: formData });
+        const data = await response.json();
+        stopWaveAnimation();
+        
+        if (data.error || !data.success) {
+          voiceResultDiv.innerHTML = `<div class="text-red-400">❌ ${data.error || "Analysis failed"}</div>`;
+          return;
+        }
+        
+        const prediction = data.prediction || (data.prediction === "Parkinson Detected" ? "Parkinson's Indicators Detected" : "Normal Voice Pattern");
+        const confidence = data.confidence || 75;
+        
+        voiceResultDiv.innerHTML = `<div class="space-y-2"><div class="font-bold text-purple-300 text-lg">🧠 ${prediction}</div><div class="text-sm">Confidence: ${confidence}%</div></div>`;
+        document.getElementById('voiceConfidenceFill').style.width = `${confidence}%`;
+        document.getElementById('voiceConfidencePercent').innerText = `${confidence}%`;
+        
+        latestVoice = { result: prediction, confidence: confidence };
+        updateCombinedResult();
+        addHistory("Voice Analysis", { primary: prediction, confidence: confidence });
+        
+      } catch (error) {
+        stopWaveAnimation();
+        voiceResultDiv.innerHTML = `<div class="text-red-400">❌ Backend connection failed. Make sure server is running on ${API_BASE_URL}</div>`;
+        console.error(error);
+      }
+    }
+
+    // ========== MOTION ANALYSIS ==========
+    async function callMotionAPI(accelFile, gyroFile, activityMode) {
+      const formData = new FormData();
+      formData.append("accel_file", accelFile);
+      formData.append("gyro_file", gyroFile);
+      formData.append("activity_mode", activityMode);
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/movement_predict`, { method: "POST", body: formData });
+        const data = await response.json();
+        
+        if (data.error || !data.success) {
+          return { success: false, error: data.error || "Analysis failed" };
+        }
+        return { success: true, prediction: data.prediction, risk_score: data.risk_score, activity: data.activity };
+      } catch (error) {
+        return { success: false, error: "Backend connection failed" };
+      }
+    }
+
+    async function analyzeSingleMotion(activity, accelId, gyroId) {
+      const accelFile = document.getElementById(accelId).files[0];
+      const gyroFile = document.getElementById(gyroId).files[0];
+      
+      if (!accelFile || !gyroFile) {
+        showToast(`Please upload both CSV files for ${activity}`);
+        return null;
+      }
+      
+      const result = await callMotionAPI(accelFile, gyroFile, activity);
+      
+      if (result.success) {
+        motionResults[activity] = result;
+        showToast(`${activity} analysis completed`);
+        
+        const metricsDiv = document.getElementById('motionMetrics');
+        if (metricsDiv) {
+          let html = '';
+          if (motionResults.standing) html += `<div class="glass-panel p-2 text-center"><div class="text-cyan-300">🧍 Standing</div><div class="font-bold">${motionResults.standing.risk_score}%</div></div>`;
+          if (motionResults.sitting) html += `<div class="glass-panel p-2 text-center"><div class="text-purple-300">🪑 Sitting</div><div class="font-bold">${motionResults.sitting.risk_score}%</div></div>`;
+          if (motionResults.walking) html += `<div class="glass-panel p-2 text-center"><div class="text-emerald-300">🚶 Walking</div><div class="font-bold">${motionResults.walking.risk_score}%</div></div>`;
+          metricsDiv.innerHTML = html;
+        }
+        return result;
+      } else {
+        showToast(`${activity} failed: ${result.error}`);
+        return null;
+      }
+    }
+
+    async function performMotionAnalysis() {
+      if (!currentUser) { showToast("Please login first"); return; }
+      
+      const motionResultDiv = document.getElementById('motionResultText');
+      motionResultDiv.innerHTML = '<div class="text-cyan-300 text-center">🔄 Analyzing all motion data...</div>';
+      
+      const standingResult = await analyzeSingleMotion('standing', 'standingAccCSV', 'standingGyroCSV');
+      const sittingResult = await analyzeSingleMotion('sitting', 'sittingAccCSV', 'sittingGyroCSV');
+      const walkingResult = await analyzeSingleMotion('walking', 'walkingAccCSV', 'walkingGyroCSV');
+      
+      const scores = [];
+      if (standingResult) scores.push(standingResult.risk_score);
+      if (sittingResult) scores.push(sittingResult.risk_score);
+      if (walkingResult) scores.push(walkingResult.risk_score);
+      
+      if (scores.length > 0) {
+        const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+        let finalPrediction = "Healthy Movement Pattern";
+        let riskColor = "risk-low";
+        if (avgScore >= 60) { finalPrediction = "🚨 High Parkinsonian Risk"; riskColor = "risk-high"; }
+        else if (avgScore >= 40) { finalPrediction = "⚠️ Moderate Parkinsonian Risk"; riskColor = "risk-moderate"; }
+        
+        const motionHtml = `<div class="space-y-3">
+          ${standingResult ? `<div class="glass-panel p-3"><span class="text-cyan-300 font-bold">🧍 Standing:</span> ${standingResult.prediction} <span class="float-right font-bold">${standingResult.risk_score}%</span></div>` : ''}
+          ${sittingResult ? `<div class="glass-panel p-3"><span class="text-purple-300 font-bold">🪑 Sitting:</span> ${sittingResult.prediction} <span class="float-right font-bold">${sittingResult.risk_score}%</span></div>` : ''}
+          ${walkingResult ? `<div class="glass-panel p-3"><span class="text-emerald-300 font-bold">🚶 Walking:</span> ${walkingResult.prediction} <span class="float-right font-bold">${walkingResult.risk_score}%</span></div>` : ''}
+          <div class="glass-panel p-4 text-center mt-3">
+            <div class="font-bold text-yellow-300 text-lg">Combined Risk Score: ${avgScore.toFixed(2)}%</div>
+            <div class="inline-block mt-2 px-4 py-2 rounded-full ${riskColor} font-bold">${finalPrediction}</div>
+          </div>
+        </div>`;
+        
+        motionResultDiv.innerHTML = motionHtml;
+        latestMotion = { result: finalPrediction, confidence: Math.round(avgScore), allResults: motionResults };
+        updateCombinedResult();
+        addHistory("Motion Analysis", { primary: finalPrediction, confidence: Math.round(avgScore) });
+      } else {
+        motionResultDiv.innerHTML = '<div class="text-red-400 text-center">❌ No valid motion data analyzed. Please upload CSV files.</div>';
+      }
+    }
+
+    // ========== INITIALIZATION ==========
+    function initMobileMenu() {
+      const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+      const mobileNav = document.getElementById('mobileNav');
+      mobileMenuBtn?.addEventListener('click', () => mobileNav.classList.toggle('open'));
+      document.querySelectorAll('.mobile-nav a').forEach(link => {
+        link.addEventListener('click', () => mobileNav.classList.remove('open'));
+      });
+    }
+
+    function initThemeToggle() {
+      const themeToggle = document.getElementById('themeToggle');
+      const themeToggleMobile = document.getElementById('themeToggleMobile');
+      const toggleHandler = () => {
+        if (document.body.classList.contains('dark')) setTheme('light');
+        else setTheme('dark');
+      };
+      themeToggle?.addEventListener('click', toggleHandler);
+      themeToggleMobile?.addEventListener('click', toggleHandler);
+      if (localStorage.getItem('theme') === 'light') setTheme('light');
+      else setTheme('dark');
+    }
+
+    function initHistoryModal() {
+      const historyModal = document.getElementById('historyModal');
+      const historyNavBtn = document.getElementById('historyNavBtn');
+      const mobileHistoryNavBtn = document.getElementById('mobileHistoryNavBtn');
+      const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+      const clearHistoryModalBtn = document.getElementById('clearHistoryModalBtn');
+      
+      function openHistoryModal() { renderHistoryModalList(); historyModal.classList.add('active'); }
+      
+      historyNavBtn?.addEventListener('click', (e) => { e.preventDefault(); openHistoryModal(); });
+      mobileHistoryNavBtn?.addEventListener('click', (e) => { e.preventDefault(); const mobileNav = document.getElementById('mobileNav'); if (mobileNav) mobileNav.classList.remove('open'); openHistoryModal(); });
+      closeHistoryBtn?.addEventListener('click', () => historyModal.classList.remove('active'));
+      clearHistoryModalBtn?.addEventListener('click', () => { if (confirm('Delete all records?')) { analysisHistory = []; localStorage.setItem('neuroscope_history', '[]'); renderHistoryModalList(); updateAuthUI(); showToast("All records cleared"); } });
+      historyModal?.addEventListener('click', (e) => { if (e.target === historyModal) historyModal.classList.remove('active'); });
+    }
+
+    function initAuth() {
+      const loginModal = document.getElementById('loginModal');
+      const signupModal = document.getElementById('signupModal');
+      const profileModal = document.getElementById('profileModal');
+      const authBtn = document.getElementById('authBtn');
+      
+      document.getElementById('doLoginBtn')?.addEventListener('click', () => {
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        if (handleLogin(email, password)) loginModal.classList.remove('active');
+      });
+      
+      document.getElementById('doSignupBtn')?.addEventListener('click', () => {
+        const name = document.getElementById('signupName').value;
+        const email = document.getElementById('signupEmail').value;
+        const password = document.getElementById('signupPassword').value;
+        if (handleSignup(name, email, password)) signupModal.classList.remove('active');
+      });
+      
+      document.getElementById('showSignupLink')?.addEventListener('click', () => { loginModal.classList.remove('active'); signupModal.classList.add('active'); });
+      document.getElementById('showLoginLink')?.addEventListener('click', () => { signupModal.classList.remove('active'); loginModal.classList.add('active'); });
+      
+      authBtn?.addEventListener('click', () => {
+        if (!currentUser) loginModal.classList.add('active');
+        else document.getElementById('userDropdown').classList.toggle('show');
+      });
+      
+      document.getElementById('profileMenuItem')?.addEventListener('click', () => { if (currentUser) { profileModal.classList.add('active'); document.getElementById('userDropdown').classList.remove('show'); } });
+      document.getElementById('closeProfileBtn')?.addEventListener('click', () => profileModal.classList.remove('active'));
+      document.getElementById('logoutMenuItem')?.addEventListener('click', handleLogout);
+      
+      document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
+      });
+    }
+
+    function initAnalysis() {
+      const startBtn = document.getElementById('startFacialBtn');
+      if (startBtn) {
+        startBtn.addEventListener('click', startFacialAnalysis);
+      }
+      
+      document.getElementById('startRecordingBtn')?.addEventListener('click', startRecording);
+      document.getElementById('stopRecordingBtn')?.addEventListener('click', stopRecording);
+      document.getElementById('analyzeVoiceBtn')?.addEventListener('click', performVoiceAnalysis);
+      document.getElementById('analyzeMotionBtn')?.addEventListener('click', performMotionAnalysis);
+      document.getElementById('saveCombinedResultBtn')?.addEventListener('click', saveCombinedResult);
+      
+      document.getElementById('audioFile')?.addEventListener('change', (e) => {
+        if (e.target.files[0]) document.getElementById('audioFileName').innerText = e.target.files[0].name;
+      });
+      
+      ['standing', 'sitting', 'walking'].forEach(act => {
+        const accInput = document.getElementById(`${act}AccCSV`);
+        const gyroInput = document.getElementById(`${act}GyroCSV`);
+        accInput?.addEventListener('change', (e) => { if (e.target.files[0]) document.getElementById(`${act}AccName`).innerText = e.target.files[0].name; });
+        gyroInput?.addEventListener('change', (e) => { if (e.target.files[0]) document.getElementById(`${act}GyroName`).innerText = e.target.files[0].name; });
+      });
+    }
+
+    function initSmoothScroll() {
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function(e) {
+          const href = this.getAttribute('href');
+          if (href === '#') return;
+          const target = document.querySelector(href);
+          if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+        });
+      });
+    }
+
+    window.viewDetail = viewDetail;
+    window.deleteEntry = deleteEntry;
+    window.updateProgressBar = updateProgressBar;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMolecularBackground();
+      initMobileMenu();
+      initThemeToggle();
+      initAuth();
+      initHistoryModal();
+      initAnalysis();
+      initSmoothScroll();
+      loadAuth();
+      setTimeout(() => { if (window.lucide) lucide.createIcons(); }, 100);
+      console.log('NeuroScope AI initialized successfully');
+      showToast("Welcome to NeuroScope AI");
+    });
+  </script>
+</body>
+</html>

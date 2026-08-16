@@ -1,0 +1,42 @@
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background: radial-gradient(circle at top, #0f172a, #000);
+  color: white;
+}
+
+.glass {
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+}
+
+.btn {
+  background: linear-gradient(90deg, #06b6d4, #8b5cf6);
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn:hover {
+  transform: scale(1.03);
+}
+
+.input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0b1220;
+  color: white;
+  margin-top: 8px;
+}
+
+.card {
+  padding: 20px;
+  margin: 10px 0;
+}

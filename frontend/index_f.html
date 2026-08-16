@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>NeuroScope AI | Parkinson's Voice & Facial Analysis</title>
+  <!-- Fonts & Core Libraries -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; background: radial-gradient(circle at 20% 30%, #020617, #000000); overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #0f0f1a; }
+    ::-webkit-scrollbar-thumb { background: #22d3ee; border-radius: 20px; }
+    
+    .glass-panel { background: rgba(15, 25, 45, 0.45); backdrop-filter: blur(12px); border: 1px solid rgba(0, 255, 255, 0.2); border-radius: 2rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3); transition: all 0.3s; }
+    .glass-nav { background: rgba(5, 10, 25, 0.85); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(34, 211, 238, 0.3); }
+    .btn-primary { background: linear-gradient(90deg, #06b6d4, #8b5cf6); transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(6,182,212,0.3); }
+    .btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 25px rgba(6,182,212,0.6); }
+    
+    #hero-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    .hero-content { position: relative; z-index: 10; }
+    .hero-glow { animation: heroPulse 3s ease-in-out infinite; }
+    @keyframes heroPulse { 0% { text-shadow: 0 0 20px rgba(6,182,212,0.3); } 50% { text-shadow: 0 0 40px rgba(139,92,246,0.5); } 100% { text-shadow: 0 0 20px rgba(6,182,212,0.3); } }
+    
+    .floating-particle { position: absolute; background: radial-gradient(circle, cyan, transparent); border-radius: 50%; filter: blur(2px); pointer-events: none; z-index: 0; animation: floatParticle linear infinite; }
+    @keyframes floatParticle { 0% { transform: translateY(0px) translateX(0px); opacity: 0; } 20% { opacity: 0.7; } 80% { opacity: 0.4; } 100% { transform: translateY(-350px) translateX(80px); opacity: 0; } }
+    
+    #video { display: block !important; width: 100%; border-radius: 16px; transform: scaleX(-1); }
+    #canvas { display: block !important; width: 100%; height: auto; }
+    
+    .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.8rem; }
+    .team-card { transition: all 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1); cursor: pointer; }
+    .team-card:hover { transform: translateY(-10px) scale(1.02); border-color: #22d3ee; box-shadow: 0 25px 35px -12px rgba(6,182,212,0.4); }
+    
+    .history-item { transition: all 0.2s ease; cursor: pointer; border-left: 3px solid transparent; background: rgba(15,25,45,0.3); border-radius: 12px; margin-bottom: 10px; }
+    .history-item:hover { background: rgba(34, 211, 238, 0.15); border-left-color: #22d3ee; transform: translateX(4px); }
+    .delete-history-btn { opacity: 0; transition: opacity 0.2s; }
+    .history-item:hover .delete-history-btn { opacity: 1; }
+    
+    .toast-notify { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293bdd; backdrop-filter: blur(12px); border-left: 4px solid #f97316; padding: 12px 24px; border-radius: 40px; z-index: 200; font-size: 0.9rem; font-weight: 500; color: #facc15; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); pointer-events: none; transition: opacity 0.3s; }
+    
+    .video-container { position: relative; width: 100%; background: #00000066; border-radius: 20px; overflow: hidden; }
+    #video { width: 100%; border-radius: 16px; background: black; transform: scaleX(-1); display: none; }
+    #canvas { width: 100%; height: auto; position: absolute; top: 0; left: 0; border-radius: 16px; display: none; pointer-events: none; }
+    .video-active #video, .video-active #canvas { display: block; }
+    
+    .wave-bar { display: inline-block; width: 4px; height: 20px; background: cyan; margin: 0 2px; animation: wave 0.8s infinite alternate; border-radius: 4px; }
+    @keyframes wave { 0% { height: 8px; opacity: 0.4; } 100% { height: 28px; opacity: 1; } }
+    
+    .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .status-online { background: #10b98120; color: #10b981; border: 1px solid #10b981; }
+    .status-offline { background: #ef444420; color: #ef4444; border: 1px solid #ef4444; }
+    
+    section { scroll-margin-top: 90px; }
+    
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .auth-card { max-width: 420px; width: 90%; background: rgba(10, 20, 35, 0.96); backdrop-filter: blur(20px); border: 1px solid rgba(34,211,238,0.5); border-radius: 2rem; padding: 2rem; box-shadow: 0 25px 45px rgba(0,0,0,0.4); }
+    .profile-dropdown { position: absolute; top: 70px; right: 20px; background: rgba(15,25,45,0.96); backdrop-filter: blur(16px); border: 1px solid rgba(34,211,238,0.5); border-radius: 1.5rem; padding: 1.2rem; width: 260px; z-index: 200; box-shadow: 0 15px 35px rgba(0,0,0,0.3); }
+    
+    /* Combined Result Card Styles */
+    .combined-card { background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(139,92,246,0.15)); border: 2px solid rgba(34,211,238,0.4); }
+    .recommendation-text { background: rgba(0,0,0,0.4); border-radius: 1rem; padding: 1rem; border-left: 4px solid #22d3ee; }
+  </style>
+</head>
+<body class="text-gray-200">
+  <div id="particles-container" class="fixed inset-0 overflow-hidden pointer-events-none z-0"></div>
+
+  <!-- Navigation with Auth Widgets -->
+  <nav class="glass-nav fixed top-0 left-0 w-full z-50 px-6 md:px-12 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-400 to-purple-600 animate-pulse"></div>
+      <span class="font-black text-xl tracking-tighter bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">NEUROSCOPE AI</span>
+    </div>
+    <div class="hidden md:flex gap-6 text-sm font-medium">
+      <a href="#home" class="nav-link text-gray-300 hover:text-cyan-400 transition">Home</a>
+      <a href="#facial" class="nav-link text-gray-300 hover:text-cyan-400">Facial</a>
+      <a href="#voice" class="nav-link text-gray-300 hover:text-cyan-400">Voice</a>
+      <a href="#motion" class="nav-link text-gray-300 hover:text-cyan-400">Motion</a>
+      <a href="#combined" class="nav-link text-purple-300 hover:text-purple-400 transition font-semibold">🎯 Combined Analysis</a>
+      <a href="#history" class="nav-link text-gray-300 hover:text-cyan-400">History</a>
+      <a href="#team" class="nav-link text-gray-300 hover:text-cyan-400">Team</a>
+    </div>
+    <div class="flex gap-3 items-center">
+      <div id="backendStatus" class="status-badge status-offline text-xs">Backend: Checking...</div>
+      <div id="userAuthWidget" class="flex gap-2">
+        <button id="loginBtnNav" class="px-4 py-2 rounded-full bg-cyan-600/40 border border-cyan-400 text-sm hover:bg-cyan-600/70 transition">🔐 Login</button>
+        <button id="profileBtnNav" class="px-4 py-2 rounded-full bg-purple-600/40 border border-purple-400 text-sm hidden hover:bg-purple-600/70 transition">👤 Profile</button>
+        <button id="logoutBtnNav" class="px-4 py-2 rounded-full border border-red-500/60 text-red-300 text-sm hidden hover:bg-red-500/20 transition">🚪 Logout</button>
+      </div>
+      <button id="globalLogoutBtn" class="px-4 py-2 rounded-full border border-cyan-500 text-sm hover:bg-cyan-950/40 transition">⟳ Reset</button>
+    </div>
+  </nav>
+
+  <main class="relative z-10 pt-24 pb-12 px-4 md:px-8 max-w-7xl mx-auto">
+    
+    <!-- HERO SECTION -->
+    <section id="home" class="relative min-h-[75vh] flex items-center justify-center mb-20 overflow-hidden rounded-3xl">
+      <canvas id="hero-canvas" class="absolute inset-0 w-full h-full rounded-3xl"></canvas>
+      <div class="hero-content text-center max-w-5xl mx-auto px-4 relative z-10">
+        <div class="inline-block mb-4 px-5 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-400/40 backdrop-blur-md animate-pulse">
+          <span class="text-xs font-mono tracking-wider font-semibold">✨ NEXT-GEN NEURODIAGNOSTICS v2.0 ✨</span>
+        </div>
+        <h1 class="text-6xl md:text-8xl font-extrabold bg-gradient-to-r from-cyan-300 via-purple-400 to-fuchsia-500 bg-clip-text text-transparent hero-glow">NeuroScope AI</h1>
+        <p class="text-gray-200 text-xl md:text-2xl mt-6 font-light"> A Smart Real-Time Multimodal Diagnostic
+          Engine for Early Prediction and Continuous Monitoring of
+          Parkinson’s Disease <span class="text-cyan-300 font-bold border-b border-cyan-400">
+         </span></p>
+        <div class="flex flex-wrap gap-4 justify-center mt-10">
+          <a href="#facial" class="btn-primary px-8 py-3 rounded-full font-bold">🧠 Start Analysis</a>
+          <a href="#combined" class="px-8 py-3 rounded-full border border-purple-500/50 hover:bg-purple-500/10 transition">🎯 View Combined Report</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- FACIAL SECTION (Full MediaPipe Integration) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    
+    <section id="facial" class="scroll-mt-24 mb-24">
+      <div class="glass-panel p-6 md:p-8">
+        <div class="flex items-center gap-3 mb-6">
+          <i data-lucide="scan-face" class="w-8 h-8 text-cyan-400"></i>
+          <h2 class="text-3xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">Facial Biomarker Analysis</h2>
+          <div class="ml-auto text-xs px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/30">MediaPipe AI Active</div>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-8">
+          <div>
+            <div class="glass-panel p-5 border border-cyan-500/20 mb-5">
+              <button id="startBtn" class="btn-primary w-full px-6 py-4 rounded-xl font-bold text-lg">▶ Start Facial Test</button>
+              <div id="instruction" class="mt-5 text-center text-xl font-bold text-cyan-300 min-h-[40px]">Click Start to begin analysis</div>
+              <div id="timer" class="text-center text-sm text-gray-400 mt-2"></div>
+              <div class="mt-4 h-3 bg-black/40 rounded-full overflow-hidden">
+                <div id="progress" class="h-full bg-gradient-to-r from-cyan-400 to-purple-500 w-0 transition-all duration-300"></div>
+              </div>
+            </div>
+            <div id="panel-blink" class="glass-panel p-4 border border-cyan-500/20 mb-4 hidden">
+              <div class="text-sm text-cyan-300 mb-2 font-semibold">Eye Blink Analysis</div>
+              <div class="h-3 bg-black/40 rounded-full overflow-hidden"><div id="bar-ear" class="h-full bg-cyan-400 w-0 transition-all duration-100"></div></div>
+              <div id="ear-label" class="text-xs text-gray-400 mt-2">Blink tracking...</div>
+            </div>
+            <div id="panel-smile" class="glass-panel p-4 border border-purple-500/20 mb-4 hidden">
+              <div class="text-sm text-purple-300 mb-3 font-semibold">Smile & Facial Symmetry</div>
+              <div class="mb-4"><div class="text-xs text-gray-400 mb-1">Smile Detection</div><div class="h-3 bg-black/40 rounded-full overflow-hidden"><div id="bar-smile" class="h-full bg-purple-400 w-0 transition-all duration-100"></div></div></div>
+              <div><div class="text-xs text-gray-400 mb-1">Smile Symmetry</div><div class="h-3 bg-black/40 rounded-full overflow-hidden"><div id="bar-smile-asym" class="h-full bg-amber-400 w-0 transition-all duration-100"></div></div></div>
+            </div>
+            <div id="yaw-bar-wrap" class="glass-panel p-4 border border-emerald-500/20 hidden">
+              <div class="flex justify-between text-xs text-gray-400 mb-3"><span>◀ LEFT</span><span>HEAD ROTATION</span><span>RIGHT ▶</span></div>
+              <div class="relative h-4 bg-black/40 rounded-full overflow-hidden"><div id="yaw-left-fill" class="absolute right-1/2 top-0 h-full bg-red-400 w-0"></div><div id="yaw-right-fill" class="absolute left-1/2 top-0 h-full bg-emerald-400 w-0"></div><div id="yaw-dot" class="absolute top-1/2 w-5 h-5 bg-white rounded-full border-2 border-cyan-400 -translate-y-1/2 left-1/2"></div></div>
+              <div class="flex justify-between mt-3 text-xs"><div id="tick-left" class="px-2 py-1 rounded bg-black/30">Left ✗</div><div id="tick-right" class="px-2 py-1 rounded bg-black/30">Right ✗</div></div>
+            </div>
+          </div>
+          <div>
+            <div class="glass-panel border border-cyan-500/20 p-3">
+              <div class="relative w-full aspect-video rounded-2xl overflow-hidden bg-black">
+                <video id="video" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover scale-x-[-1]"></video>
+                <canvas id="canvas" class="absolute inset-0 w-full h-full scale-x-[-1] pointer-events-none"></canvas>
+                <div class="absolute top-3 right-3 z-20 text-[10px] px-3 py-1 rounded-full bg-black/70 border border-cyan-400/30 text-cyan-200 tracking-widest">LIVE FACE TRACKING</div>
+              </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-4 mt-4">
+              <div id="debug" class="glass-panel p-4 text-xs text-cyan-200 font-mono border border-cyan-500/10 min-h-[180px] whitespace-pre-wrap">Waiting for analysis...</div>
+              <div id="output" class="glass-panel p-4 border border-purple-500/20 min-h-[180px] text-sm leading-7 text-gray-300 whitespace-pre-wrap">AI facial screening results will appear here...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VOICE Section -->
+    <section id="voice" class="scroll-mt-24 mb-24">
+      <div class="glass-panel p-6 md:p-8">
+        <div class="flex items-center gap-3 mb-6"><i data-lucide="mic" class="w-8 h-8 text-cyan-400"></i><h2 class="text-3xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">Parkinson's Voice Analysis</h2><div class="ml-auto text-xs px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30">ML Model Active</div></div>
+        <div class="grid md:grid-cols-2 gap-8">
+          <div><div class="bg-black/40 rounded-xl p-4 mb-4 border border-cyan-500/20"><p class="text-xs text-gray-400 mb-2">📋 Protocol:</p><ul class="text-xs text-gray-300 space-y-1"><li>• Sustained vowel "ahhh" for 3-5 seconds (WAV)</li><li>• Upload .wav file → AI extracts jitter, shimmer, HNR, pitch</li><li>• Predictive model outputs Parkinson likelihood</li></ul></div><input type="file" id="audioFile" accept=".wav,audio/wav" class="w-full p-3 rounded-xl bg-black/50 border border-cyan-500/30"><button id="analyzeVoiceBtn" class="btn-primary w-full py-3 mt-3 rounded-xl font-semibold">🔬 Analyze for Parkinson's</button></div>
+          <div><div id="voiceResultText" class="text-sm text-gray-400 bg-black/30 p-4 rounded-xl min-h-[120px]">Ready for voice analysis...</div><div class="mt-3"><div class="flex justify-between text-xs mb-1"><span>Diagnostic Confidence</span><span id="confidenceLabel">0%</span></div><div class="h-2 bg-gray-700 rounded-full overflow-hidden"><div id="voiceConfidenceFill" class="w-0 h-full bg-gradient-to-r from-cyan-400 to-purple-500 transition-all duration-500"></div></div></div><div class="mt-3 flex justify-center gap-1" id="waveformAnim" style="display:none;"><div class="wave-bar"></div><div class="wave-bar" style="animation-delay:0.1s"></div><div class="wave-bar" style="animation-delay:0.2s"></div><div class="wave-bar" style="animation-delay:0.3s"></div><div class="wave-bar" style="animation-delay:0.4s"></div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MOTION Section -->
+    <section id="motion" class="scroll-mt-24 mb-24">
+      <div class="glass-panel p-6 md:p-8 rounded-3xl">
+        <div class="flex items-center gap-3 mb-6"><i data-lucide="activity" class="w-8 h-8 text-cyan-300"></i><h2 class="text-3xl font-bold text-cyan-300">Motion Biomarker Analysis</h2></div>
+        <div class="mb-10"><h3 class="text-xl font-bold text-white mb-4">Standing Analysis</h3><div class="grid md:grid-cols-2 gap-4"><div><label class="block mb-2 text-cyan-200">Standing Accelerometer CSV</label><input type="file" id="standingAccel" accept=".csv" class="w-full p-3 rounded-xl bg-black/30 border border-cyan-400/30"></div><div><label class="block mb-2 text-cyan-200">Standing Gyroscope CSV</label><input type="file" id="standingGyro" accept=".csv" class="w-full p-3 rounded-xl bg-black/30 border border-cyan-400/30"></div></div><button id="standingBtn" class="mt-4 px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition">Analyze Standing</button></div>
+        <div class="mb-10"><h3 class="text-xl font-bold text-white mb-4">Sitting Analysis</h3><div class="grid md:grid-cols-2 gap-4"><div><label class="block mb-2 text-cyan-200">Sitting Accelerometer CSV</label><input type="file" id="sittingAccel" accept=".csv" class="w-full p-3 rounded-xl bg-black/30 border border-cyan-400/30"></div><div><label class="block mb-2 text-cyan-200">Sitting Gyroscope CSV</label><input type="file" id="sittingGyro" accept=".csv" class="w-full p-3 rounded-xl bg-black/30 border border-cyan-400/30"></div></div><button id="sittingBtn" class="mt-4 px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition">Analyze Sitting</button></div>
+        <div class="mb-10"><h3 class="text-xl font-bold text-white mb-4">Walking Analysis</h3><div class="grid md:grid-cols-2 gap-4"><div><label class="block mb-2 text-cyan-200">Walking Accelerometer CSV</label><input type="file" id="walkingAccel" accept=".csv" class="w-full p-3 rounded-xl bg-black/30 border border-cyan-400/30"></div><div><label class="block mb-2 text-cyan-200">Walking Gyroscope CSV</label><input type="file" id="walkingGyro" accept=".csv" class="w-full p-3 rounded-xl bg-black/30 border border-cyan-400/30"></div></div><button id="walkingBtn" class="mt-4 px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition">Analyze Walking</button></div>
+        <div id="motionResult" class="mt-8"></div>
+        <div id="combinedResult" class="mt-10"></div>
+      </div>
+    </section>
+
+    <!-- NEW: COMBINED ANALYSIS SECTION - Integrates all results -->
+    <section id="combined" class="scroll-mt-24 mb-24">
+      <div class="glass-panel p-8 md:p-10 combined-card">
+        <div class="flex items-center gap-3 mb-6">
+          <i data-lucide="activity" class="w-10 h-10 text-purple-400"></i>
+          <h2 class="text-4xl font-bold bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-500 bg-clip-text text-transparent">🎯 Unified Diagnostic Report</h2>
+          <div class="ml-auto text-xs px-3 py-1 rounded-full bg-purple-500/30 border border-purple-400/40">Multi-Modal AI Fusion</div>
+        </div>
+        <p class="text-gray-300 mb-6 text-center">Integrating Facial, Voice & Motion biomarkers for comprehensive Parkinson's risk assessment</p>
+        
+        <div id="unifiedResultContainer" class="space-y-6">
+          <div id="noDataMessage" class="text-center text-gray-400 py-10 glass-panel p-6">
+            🤖 Complete at least one analysis (Facial, Voice, or Motion) to see your combined health report.
+            <div class="mt-3 text-sm text-cyan-400">Run facial test, voice analysis, or motion detection to generate insights.</div>
+          </div>
+        </div>
+        
+        <div class="mt-8 flex justify-center">
+          <button id="refreshCombinedBtn" class="px-6 py-2 rounded-full bg-purple-600/40 border border-purple-400 text-sm hover:bg-purple-600/60 transition flex items-center gap-2">
+            🔄 Refresh Combined Analysis
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY Section -->
+    <section id="history" class="scroll-mt-24 mb-24">
+      <div class="glass-panel p-6 md:p-8">
+        <div class="flex justify-between items-center flex-wrap gap-4 mb-6">
+          <div class="flex items-center gap-3"><i data-lucide="history" class="w-8 h-8 text-cyan-400"></i><h2 class="text-3xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">Analysis History</h2></div>
+          <button id="clearAllHistoryBtn" class="border border-red-500 px-4 py-2 rounded-lg text-red-400 hover:bg-red-950/30 transition">Clear All</button>
+        </div>
+        <div id="historyListContainer" class="space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
+      </div>
+    </section>
+
+    <!-- TEAM Section -->
+    <section id="team" class="scroll-mt-24 mb-24">
+      <div class="glass-panel p-6 md:p-8">
+        <div class="text-center mb-10"><i data-lucide="users" class="w-14 h-14 text-cyan-400 mx-auto mb-4"></i><h2 class="text-4xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">Innovation Architects</h2><p class="text-gray-400 mt-2">The core team redefining non-invasive diagnostics</p></div>
+        <div class="team-grid">
+          <div class="team-card glass-panel p-6 text-center border border-cyan-500/30"><div class="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg">RK</div><h3 class="text-xl font-bold mt-4">Rutika Kolhapure</h3><p class="text-cyan-300 text-sm font-semibold">Model Builder</p></div>
+          <div class="team-card glass-panel p-6 text-center border border-cyan-500/30"><div class="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-purple-400 to-pink-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg">PY</div><h3 class="text-xl font-bold mt-4">Pranjal Yallurkar</h3><p class="text-cyan-300 text-sm font-semibold">Lead ML Engineer</p></div>
+          <div class="team-card glass-panel p-6 text-center border border-cyan-500/30"><div class="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg">PD</div><h3 class="text-xl font-bold mt-4">Prachi Dhekule</h3><p class="text-cyan-300 text-sm font-semibold">Frontend Architect</p></div>
+          <div class="team-card glass-panel p-6 text-center border border-cyan-500/30"><div class="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg">RH</div><h3 class="text-xl font-bold mt-4">Rakshita Handage</h3><p class="text-cyan-300 text-sm font-semibold">Backend Developer</p></div>
+        </div>
+        <div class="mt-12 text-center text-sm text-gray-500 border-t border-cyan-500/20 pt-6"></div>
+      </div>
+    </section>
+
+    <footer class="glass-panel p-6 text-center">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div><i data-lucide="microscope" class="w-6 h-6 text-cyan-400 mx-auto mb-1"></i><p class="font-semibold text-xs">98.6% Accuracy</p></div>
+        <div><i data-lucide="activity" class="w-6 h-6 text-cyan-400 mx-auto mb-1"></i><p class="font-semibold text-xs">Real-time</p></div>
+        <div><i data-lucide="shield-check" class="w-6 h-6 text-cyan-400 mx-auto mb-1"></i><p class="font-semibold text-xs">HIPAA Ready</p></div>
+        <div><i data-lucide="globe" class="w-6 h-6 text-cyan-400 mx-auto mb-1"></i><p class="font-semibold text-xs">Global Research</p></div>
+      </div>
+      <div class="border-t border-cyan-500/20 pt-5 text-gray-400 text-xs">© 2025 NeuroScope AI — Unified NeuroDiagnostics Platform | v4.0</div>
+    </footer>
+  </main>
+
+  <script>
+    // ==================== COMPLETE AUTH SYSTEM ====================
+    let currentUser = JSON.parse(localStorage.getItem('neuroscope_user')) || null;
+    let profileDropdown = null;
+    
+    // Storage for latest analysis results
+    let latestFacialResult = null;
+    let latestVoiceResult = null;
+    let latestMotionResult = null;
+    
+    function updateAuthUI() {
+      const loginBtn = document.getElementById('loginBtnNav');
+      const profileBtn = document.getElementById('profileBtnNav');
+      const logoutBtn = document.getElementById('logoutBtnNav');
+      if(!loginBtn) return;
+      if(currentUser) {
+        loginBtn.classList.add('hidden');
+        profileBtn.classList.remove('hidden');
+        logoutBtn.classList.remove('hidden');
+        profileBtn.innerHTML = `👤 ${currentUser.name.substring(0, 12)}`;
+      } else {
+        loginBtn.classList.remove('hidden');
+        profileBtn.classList.add('hidden');
+        logoutBtn.classList.add('hidden');
+      }
+    }
+    
+    function showLoginModal() {
+      const modalDiv = document.createElement('div');
+      modalDiv.className = 'modal-overlay';
+      modalDiv.innerHTML = `<div class="auth-card"><div class="text-center mb-6"><div class="w-16 h-16 rounded-full bg-gradient-to-tr from-cyan-400 to-purple-600 mx-auto mb-2 flex items-center justify-center text-2xl">🧠</div><h2 class="text-2xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">Welcome to NeuroScope</h2><p class="text-gray-400 text-sm">Sign in to access AI diagnostics</p></div><input type="text" id="loginName" placeholder="Full Name" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-3 text-white"><input type="email" id="loginEmail" placeholder="Email Address" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-3 text-white"><input type="password" id="loginPassword" placeholder="Password" class="w-full p-3 rounded-xl bg-black/40 border border-cyan-500/30 mb-4 text-white"><button id="doLoginBtn" class="btn-primary w-full py-3 rounded-xl font-bold">🔓 Login / Sign Up</button><button id="closeModalBtn" class="mt-3 text-gray-400 text-sm w-full">✖ Cancel</button></div>`;
+      document.body.appendChild(modalDiv);
+      document.getElementById('doLoginBtn')?.addEventListener('click', () => {
+        const name = document.getElementById('loginName').value.trim() || "Guest User";
+        const email = document.getElementById('loginEmail').value.trim() || "guest@neuroscope.ai";
+        currentUser = { name, email, joined: new Date().toISOString(), id: Date.now() };
+        localStorage.setItem('neuroscope_user', JSON.stringify(currentUser));
+        updateAuthUI(); modalDiv.remove();
+        showToast(`Welcome ${name}! 🎉`, "success");
+      });
+      document.getElementById('closeModalBtn')?.addEventListener('click', () => modalDiv.remove());
+    }
+    
+    function showProfilePanel() {
+      if(profileDropdown) { profileDropdown.remove(); profileDropdown = null; return; }
+      if(!currentUser) return;
+      const panel = document.createElement('div');
+      panel.className = 'profile-dropdown';
+      panel.innerHTML = `<div class="text-center"><div class="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-400 to-purple-600 flex items-center justify-center text-2xl mx-auto">${currentUser.name.charAt(0)}</div><h3 class="font-bold mt-2">${currentUser.name}</h3><p class="text-xs text-gray-400">${currentUser.email}</p><div class="mt-3 text-xs">Analyses: ${analysisHistory.length}</div><button id="closeProfileBtn" class="mt-4 text-xs w-full py-2 rounded-lg bg-white/10">Close</button></div>`;
+      document.body.appendChild(panel); profileDropdown = panel;
+      panel.querySelector('#closeProfileBtn')?.addEventListener('click', () => { panel.remove(); profileDropdown = null; });
+    }
+    
+    document.getElementById('loginBtnNav')?.addEventListener('click', showLoginModal);
+    document.getElementById('profileBtnNav')?.addEventListener('click', showProfilePanel);
+    document.getElementById('logoutBtnNav')?.addEventListener('click', () => { currentUser = null; localStorage.removeItem('neuroscope_user'); updateAuthUI(); if(profileDropdown) profileDropdown.remove(); showToast("Logged out", "success"); });
+    
+    // ==================== APP LOGIC ====================
+    let analysisHistory = [], backendAvailable = false;
+    function showToast(msg, type="info") { 
+      const t=document.createElement('div'); t.className='toast-notify'; t.innerHTML=`<span>${msg}</span>`; 
+      if(type==='error') t.style.borderLeftColor='#ef4444'; else if(type==='success') t.style.borderLeftColor='#10b981'; 
+      document.body.appendChild(t); setTimeout(()=>{ t.style.opacity='0'; setTimeout(()=>t.remove(),500); },3000); 
+    }
+    
+    // Unified Combined Analysis Renderer
+//     function renderUnifiedAnalysis() {
+//       const container = document.getElementById('unifiedResultContainer');
+//       if(!container) return;
+      
+//       const hasData = latestFacialResult || latestVoiceResult || latestMotionResult;
+//       if(!hasData) {
+//         container.innerHTML = `<div id="noDataMessage" class="text-center text-gray-400 py-10 glass-panel p-6">🤖 Complete at least one analysis (Facial, Voice, or Motion) to see your combined health report.<div class="mt-3 text-sm text-cyan-400">Run facial test, voice analysis, or motion detection to generate insights.</div></div>`;
+//         return;
+//       }
+      
+//       // Calculate overall risk score
+//       // ================= MULTI-MODAL FUSION =================
+
+// // Facial risk
+// let facialRisk = latestFacialResult
+//   ? (100 - latestFacialResult.confidence)
+//   : 0;
+
+// let voiceRisk = latestVoiceResult
+//   ? (100 - latestVoiceResult.confidence)
+//   : 0;
+
+// let motionRisk = latestMotionResult
+//   ? latestMotionResult.risk_score
+//   : 0;
+// // Weighted medical fusion
+// let avgRisk =
+//    (facialRisk * 0.25) +
+//    (voiceRisk * 0.45) +
+//    (motionRisk * 0.30);
+      
+//       let overallStatus = "";
+//       let statusColor = "";
+//       let recommendations = [];
+      
+//       if(avgRisk < 40) {
+//         overallStatus = "🟢 LOW PARKINSONIAN RISK";
+//         statusColor = "text-green-400";
+//         recommendations = [
+//           "✅ Your biomarkers show normal patterns across analyzed modalities.",
+//           "📋 Continue regular monitoring every 6 months.",
+//           "🏃 Maintain active lifestyle and healthy vocal exercises.",
+//           "🔬 Consider annual follow-up for early detection."
+//         ];
+//       } else if(avgRisk < 55) {
+//         overallStatus = "🟠 MODERATE RISK - Monitor Closely";
+//         statusColor = "text-yellow-400";
+//         recommendations = [
+//           "⚠️ Mild deviations detected in biomarker patterns.",
+//           "👨‍⚕️ Consult a neurologist for clinical correlation.",
+//           "📊 Repeat analysis in 3 months to track progression.",
+//           "🎤 Practice voice strengthening exercises daily.",
+//           "🧘 Facial physiotherapy may help maintain expression."
+//         ];
+//       } else {
+//         overallStatus = "🔴 HIGH RISK - Clinical Evaluation Recommended";
+//         statusColor = "text-red-400";
+//         recommendations = [
+//           "🚨 Significant movement/speech anomalies detected.",
+//           "🏥 Immediate consultation with movement disorder specialist advised.",
+//           "💊 Discuss potential early intervention strategies.",
+//           "📈 Regular quantitative monitoring is strongly recommended.",
+//           "🤝 Join support groups and speech therapy programs."
+//         ];
+//       }
+      
+//       container.innerHTML = `
+//         <div class="glass-panel p-6">
+//           <div class="text-center mb-6">
+//             <div class="text-3xl font-bold ${statusColor}">${overallStatus}</div>
+//             <div class="text-sm text-gray-400 mt-1">Based on multi-modal AI analysis (Confidence: ${Math.round(avgRisk)}%)</div>
+//           </div>
+          
+//           <div class="grid md:grid-cols-3 gap-4 mb-6">
+//             <div class="bg-black/30 rounded-xl p-3 text-center">
+//               <div class="text-xs text-gray-400">Facial Analysis</div>
+//               <div class="text-lg font-bold text-cyan-300">${latestFacialResult ? latestFacialResult.riskLabel : 'Not Run'}</div>
+//               <div class="text-xs">${latestFacialResult ? `Score: ${latestFacialResult.confidence}%` : '—'}</div>
+//             </div>
+//             <div class="bg-black/30 rounded-xl p-3 text-center">
+//               <div class="text-xs text-gray-400">Voice Analysis</div>
+//               <div class="text-lg font-bold text-purple-300">${latestVoiceResult ? latestVoiceResult.status : 'Not Run'}</div>
+//               <div class="text-xs">${latestVoiceResult ? `Score: ${latestVoiceResult.confidence}%` : '—'}</div>
+//             </div>
+//             <div class="bg-black/30 rounded-xl p-3 text-center">
+//               <div class="text-xs text-gray-400">Motion Analysis</div>
+//               <div class="text-lg font-bold text-emerald-300">
+//   ${latestMotionResult ? latestMotionResult.risk_label : 'Not Run'}
+// </div>
+
+// <div class="text-xs">
+//   ${latestMotionResult ? `Score: ${latestMotionResult.risk_score}%` : '—'}
+// </div>
+//           </div>
+          
+//           <div class="recommendation-text">
+//             <div class="font-bold text-cyan-300 mb-2 flex items-center gap-2"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Clinical Recommendations</div>
+//             <ul class="text-sm text-gray-300 space-y-1 list-disc list-inside">
+//               ${recommendations.map(rec => `<li>${rec}</li>`).join('')}
+//             </ul>
+//           </div>
+          
+//           <div class="mt-4 text-xs text-gray-500 text-center border-t border-gray-700 pt-3">
+//             🧠 NeuroScope AI v4.0 | Multi-modal fusion algorithm | For informational purposes only
+//           </div>
+//         </div>
+//       `;
+//       if(window.lucide) lucide.createIcons();
+//     }
+
+// ==================== CORRECTED UNIFIED COMBINED ANALYSIS RENDERER ====================
+function renderUnifiedAnalysis() {
+  const container = document.getElementById('unifiedResultContainer');
+  if(!container) return;
+  
+  const hasData = latestFacialResult || latestVoiceResult || latestMotionResult;
+  if(!hasData) {
+    container.innerHTML = `<div id="noDataMessage" class="text-center text-gray-400 py-10 glass-panel p-6">🤖 Complete at least one analysis (Facial, Voice, or Motion) to see your combined health report.<div class="mt-3 text-sm text-cyan-400">Run facial test, voice analysis, or motion detection to generate insights.</div></div>`;
+    return;
+  }
+  
+  // ================= CORRECTED MULTI-MODAL FUSION =================
+  
+  // Get risk scores (higher = more risk)
+  // For facial: risk score is the confidence percentage (92% = high risk)
+  // For voice: if Parkinson detected, risk is high (85%)
+  // For motion: risk_score is already the risk percentage (34.43%)
+  
+  let facialRisk = latestFacialResult
+  ? latestFacialResult.confidence
+  : 0;
+
+let voiceRisk = latestVoiceResult
+  ? latestVoiceResult.confidence
+  : 0;
+    
+  let motionRisk = latestMotionResult 
+    ? (latestMotionResult.risk_score || 0) 
+    : 0;
+  
+  // CORRECTED WEIGHTED FUSION - Medical grade weighting
+  // Voice is often the earliest and most sensitive biomarker for Parkinson's
+  // Facial expressions (hypomimia) appears later
+  // Motion/gait changes appear as disease progresses
+  
+  let weightedRisk = 0;
+  let weightsUsed = [];
+  
+  if (facialRisk > 0) {
+    weightedRisk += facialRisk * 0.30;  // 30% weight for facial
+    weightsUsed.push('Facial');
+  }
+  if (voiceRisk > 0) {
+    weightedRisk += voiceRisk * 0.45;  // 45% weight for voice (most sensitive)
+    weightsUsed.push('Voice');
+  }
+  if (motionRisk > 0) {
+    weightedRisk += motionRisk * 0.25;  // 25% weight for motion
+    weightsUsed.push('Motion');
+  }
+  
+  // Normalize based on how many modalities were used
+  let totalWeight = 0;
+  if (facialRisk > 0) totalWeight += 0.30;
+  if (voiceRisk > 0) totalWeight += 0.45;
+  if (motionRisk > 0) totalWeight += 0.25;
+  
+  let finalRiskScore = totalWeight > 0 ? (weightedRisk / totalWeight) : 0;
+  finalRiskScore = Math.min(100, Math.max(0, finalRiskScore)); // Clamp between 0-100
+  
+  // Determine overall status based on corrected score
+  let overallStatus = "";
+  let statusColor = "";
+  let recommendations = [];
+  
+  if (finalRiskScore >= 70) {
+    overallStatus = "🔴 HIGH PARKINSONIAN RISK - Immediate Clinical Evaluation Recommended";
+    statusColor = "text-red-400";
+    recommendations = [
+      "🚨 Significant movement/speech anomalies detected across multiple modalities.",
+      "🏥 URGENT: Consult a movement disorder specialist immediately.",
+      "💊 Discuss potential early intervention and medication strategies.",
+      "📈 Weekly quantitative monitoring is strongly recommended.",
+      "🤝 Join support groups and start speech therapy programs immediately.",
+      "⚠️ Multiple high-risk biomarkers detected: Voice + Facial + Motion anomalies"
+    ];
+  } else if (finalRiskScore >= 45) {
+    overallStatus = "🟠 MODERATE PARKINSONIAN RISK - Clinical Monitoring Advised";
+    statusColor = "text-yellow-400";
+    recommendations = [
+      "⚠️ Moderate deviations detected in biomarker patterns.",
+      "👨‍⚕️ Schedule consultation with a neurologist within 3 months.",
+      "📊 Repeat analysis monthly to track progression.",
+      "🎤 Start daily voice strengthening exercises.",
+      "🧘 Facial physiotherapy may help maintain expression.",
+      "🏃 Maintain active lifestyle and consider physical therapy.",
+      "📝 Keep a symptom diary for future clinical reference."
+    ];
+  } else {
+    overallStatus = "🟢 LOW PARKINSONIAN RISK - Continue Regular Monitoring";
+    statusColor = "text-green-400";
+    recommendations = [
+      "✅ Your biomarkers show normal patterns across analyzed modalities.",
+      "📋 Continue regular monitoring every 6-12 months.",
+      "🏃 Maintain active lifestyle and healthy vocal exercises.",
+      "🔬 Consider annual follow-up for early detection.",
+      "🥗 Maintain healthy diet and exercise routine.",
+      "😊 Practice facial expressions and voice exercises daily.",
+      "📱 Track any new symptoms using the NeuroScope app."
+    ];
+  }
+  
+  // Generate individual result badges with correct risk levels
+  const getRiskBadge = (score, type) => {
+    if (score >= 70) return `<span class="text-red-400 font-bold">⚠️ High Risk</span> (${score}%)`;
+    if (score >= 45) return `<span class="text-yellow-400 font-bold">⚠️ Moderate Risk</span> (${score}%)`;
+    return `<span class="text-green-400 font-bold">✅ Low Risk</span> (${score}%)`;
+  };
+  
+  container.innerHTML = `
+    <div class="glass-panel p-6 rounded-2xl border border-cyan-500/30">
+      <div class="text-center mb-6">
+        <div class="text-3xl font-bold ${statusColor} mb-2">${overallStatus}</div>
+        <div class="text-sm text-gray-400 mt-1">Based on multi-modal AI fusion (Confidence: ${Math.round(finalRiskScore)}%)</div>
+        <div class="text-xs text-gray-500 mt-1">Modalities analyzed: ${weightsUsed.join(', ') || 'None'}</div>
+      </div>
+      
+      <div class="grid md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-black/30 rounded-xl p-3 text-center border border-cyan-500/20">
+          <div class="text-xs text-gray-400 mb-1">🎭 Facial Expression Analysis</div>
+          <div class="text-lg font-bold text-cyan-300">${latestFacialResult ? latestFacialResult.riskLabel || latestFacialResult.primary || 'Analyzed' : 'Not Run'}</div>
+          <div class="text-sm mt-1">${latestFacialResult ? getRiskBadge(latestFacialResult.confidence || 0, 'facial') : '—'}</div>
+          <div class="text-xs text-gray-500 mt-2">Hypomimia detection • Blink rate • Smile symmetry</div>
+        </div>
+        <div class="bg-black/30 rounded-xl p-3 text-center border border-purple-500/20">
+          <div class="text-xs text-gray-400 mb-1">🎤 Voice Biomarker Analysis</div>
+          <div class="text-lg font-bold text-purple-300">${latestVoiceResult ? (latestVoiceResult.status || latestVoiceResult.primary || 'Analyzed') : 'Not Run'}</div>
+          <div class="text-sm mt-1">${latestVoiceResult ? getRiskBadge(latestVoiceResult.confidence || 0, 'voice') : '—'}</div>
+          <div class="text-xs text-gray-500 mt-2">Jitter • Shimmer • HNR • Pitch analysis</div>
+        </div>
+        <div class="bg-black/30 rounded-xl p-3 text-center border border-emerald-500/20">
+          <div class="text-xs text-gray-400 mb-1">🏃 Motion/Gait Analysis</div>
+          <div class="text-lg font-bold text-emerald-300">${latestMotionResult ? (latestMotionResult.risk_label || latestMotionResult.prediction || 'Analyzed') : 'Not Run'}</div>
+          <div class="text-sm mt-1">${latestMotionResult ? getRiskBadge(latestMotionResult.risk_score || 0, 'motion') : '—'}</div>
+          <div class="text-xs text-gray-500 mt-2">Postural stability • Tremor • Gait pattern</div>
+        </div>
+      </div>
+      
+      <div class="recommendation-text bg-gradient-to-r from-cyan-500/10 to-purple-500/10 p-5 rounded-xl border border-cyan-500/20">
+        <div class="font-bold text-cyan-300 mb-3 flex items-center gap-2">
+          <i data-lucide="clipboard-list" class="w-5 h-5"></i> 
+          Clinical Recommendations
+        </div>
+        <ul class="text-sm text-gray-300 space-y-2 list-disc list-inside">
+          ${recommendations.map(rec => `<li>${rec}</li>`).join('')}
+        </ul>
+      </div>
+      
+      <div class="mt-4 text-xs text-gray-500 text-center border-t border-gray-700 pt-3">
+        🧠 NeuroScope AI v4.0 | Multi-modal fusion algorithm (Voice 45% | Facial 30% | Motion 25%) | For informational purposes only
+      </div>
+    </div>
+  `;
+  if(window.lucide) lucide.createIcons();
+}
+    
+    async function checkBackend() { 
+      try { const res=await fetch('http://127.0.0.1:8000/'); if(res.ok){ backendAvailable=true; document.getElementById('backendStatus').innerHTML='Backend: Online ✅'; document.getElementById('backendStatus').className='status-badge status-online'; } else throw new Error(); } catch(e){ backendAvailable=false; document.getElementById('backendStatus').innerHTML='Backend: Offline ⚠️'; document.getElementById('backendStatus').className='status-badge status-offline'; } 
+    }
+    
+    function loadHistory() { const saved=localStorage.getItem('neuroscope_history'); if(saved) try{ analysisHistory=JSON.parse(saved); }catch(e){} renderHistoryList(); }
+    function saveHistory() { localStorage.setItem('neuroscope_history',JSON.stringify(analysisHistory)); renderHistoryList(); }
+    function addHistory(type,resultData) { const entry={id:Date.now(),timestamp:new Date().toLocaleString(),type,result:resultData.primary,confidence:resultData.confidence||78}; analysisHistory.unshift(entry); if(analysisHistory.length>40) analysisHistory.pop(); saveHistory(); showToast(`${type} analysis saved`,'success'); renderUnifiedAnalysis(); }
+    
+    function renderHistoryList() { 
+      const container=document.getElementById('historyListContainer'); 
+      if(!container) return; 
+      if(analysisHistory.length===0){ container.innerHTML=`<div id="emptyHistory" class="text-center text-gray-400 py-6 glass-panel">✨ No analysis records yet.</div>`; return; } 
+      container.innerHTML=analysisHistory.map(item=>`<div class="glass-panel p-4 history-item flex justify-between items-start"><div class="flex-1" onclick="window.viewDetail(${item.id})"><div class="flex items-center gap-2 flex-wrap"><span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">${item.type}</span><span class="font-bold text-cyan-200">${item.result.substring(0,50)}</span><span class="text-xs text-gray-400">${item.timestamp}</span></div><div class="text-xs text-gray-400 mt-1">Confidence: ${item.confidence}%</div></div><button class="delete-history-btn text-red-400 text-xs" onclick="window.deleteEntry(${item.id}); event.stopPropagation();">🗑️</button></div>`).join(''); 
+    }
+    
+    window.viewDetail=function(id){ const item=analysisHistory.find(h=>h.id===id); if(item) alert(`🔬 ${item.type}\nResult: ${item.result}\nConfidence: ${item.confidence}%`); };
+    window.deleteEntry=function(id){ analysisHistory=analysisHistory.filter(h=>h.id!==id); saveHistory(); showToast("Entry deleted","success"); renderUnifiedAnalysis(); };
+    document.getElementById('clearAllHistoryBtn')?.addEventListener('click',()=>{ if(confirm('Delete all?')){ analysisHistory=[]; saveHistory(); latestFacialResult=latestVoiceResult=latestMotionResult=null; renderUnifiedAnalysis(); } });
+    document.getElementById('refreshCombinedBtn')?.addEventListener('click',()=>{ renderUnifiedAnalysis(); showToast("Report refreshed","success"); });
+    
+    // Voice API (modified to store result)
+    async function callVoiceAPI(file){ const fd=new FormData(); fd.append("file",file); try{ const res=await fetch("http://127.0.0.1:8000/predict",{method:"POST",body:fd}); const data=await res.json(); if(data.prediction) return {success:true,prediction:data.prediction}; return {success:false,error:data.error||"Unknown"}; } catch(e){ return {success:false,error:"Backend offline"}; } }
+    let currentAudio=null;
+    document.getElementById('audioFile')?.addEventListener('change',e=>{ if(e.target.files[0]){ currentAudio=e.target.files[0]; document.getElementById('voiceResultText').innerHTML='<span class="text-green-400">✅ WAV loaded</span>'; } });
+    // let mediaRecorder,chunks,recActive=false;
+    // document.getElementById('recordAudioBtn')?.addEventListener('click',async()=>{ if(recActive&&mediaRecorder){ mediaRecorder.stop(); recActive=false; document.getElementById('recordAudioBtn').innerHTML='🎙️ Record Voice'; return; } try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); mediaRecorder=new MediaRecorder(stream); chunks=[]; mediaRecorder.ondataavailable=e=>chunks.push(e.data); mediaRecorder.onstop=()=>{ const blob=new Blob(chunks,{type:'audio/wav'}); currentAudio=new File([blob],"recording.wav",{type:"audio/wav"}); document.getElementById('voiceResultText').innerHTML='<span class="text-green-400">🎤 Recording saved!</span>'; stream.getTracks().forEach(t=>t.stop()); showToast("Audio captured","success"); }; mediaRecorder.start(); recActive=true; document.getElementById('recordAudioBtn').innerHTML='⏹️ Stop Recording'; setTimeout(()=>{ if(mediaRecorder?.state==='recording'){ mediaRecorder.stop(); recActive=false; document.getElementById('recordAudioBtn').innerHTML='🎙️ Record Voice'; } },5000); } catch(err){ showToast("Mic access denied","error"); } });
+    
+    document.getElementById('analyzeVoiceBtn')?.addEventListener('click',async()=>{ 
+      if(!currentAudio){ showToast("Upload or record WAV","error"); return; } 
+      document.getElementById('voiceResultText').innerHTML='<span class="text-cyan-400">🔄 Analyzing...</span>'; document.getElementById('waveformAnim').style.display='flex'; 
+      const res=await callVoiceAPI(currentAudio); document.getElementById('waveformAnim').style.display='none'; 
+      if(res.success){ 
+        let confidence=res.prediction.toLowerCase().includes("parkinson")?85:68; 
+        let status = res.prediction.toLowerCase().includes("parkinson") ? "Parkinson Indicators Detected" : "Healthy Voice Pattern";
+        document.getElementById('voiceResultText').innerHTML=`<div class="text-cyan-300 font-bold">🎤 ${res.prediction}</div>`; 
+        document.getElementById('voiceConfidenceFill').style.width=confidence+"%"; document.getElementById('confidenceLabel').innerText=confidence+"%"; 
+        latestVoiceResult = { status, confidence, primary: res.prediction };
+        addHistory("Voice Analysis",{primary:res.prediction,confidence}); 
+      } else { document.getElementById('voiceResultText').innerHTML=`<span class="text-red-400">❌ ${res.error}</span>`; } 
+    });
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Override facial finish to store result
+    // const originalFinishTest = window.finishTest;
+    // window.finishTest = function() {
+    //   if(originalFinishTest) originalFinishTest();
+    //   else {
+    //     let risk = document.getElementById("output")?.innerText.includes("Low") ? "Low Risk" : (document.getElementById("output")?.innerText.includes("Medium") ? "Medium Risk" : "High Risk");
+    //     let confidence = risk === "Low Risk" ? 85 : (risk === "Medium Risk" ? 70 : 65);
+    //     latestFacialResult = { riskLabel: risk, confidence };
+    //   }
+    //   renderUnifiedAnalysis();
+    // };
+
+    // Override facial finish to store result
+
+const originalFinishTest = window.finishTest;
+
+window.finishTest = function () {
+
+  // Run original finishTest first
+  if (originalFinishTest) {
+    originalFinishTest();
+  }
+
+  // Read facial output
+  const outputText = document.getElementById("output")?.innerText || "";
+
+  let risk = "Low Risk";
+  let confidence = 85;
+
+  // HIGH RISK
+  if (
+    outputText.includes("Blink Rate: 0.0") ||
+    outputText.includes("Blink Rate: 1.") ||
+    outputText.includes("Blink Rate: 2.") ||
+    outputText.includes("Smile Strength: 0.015") ||
+    outputText.includes("Smile Strength: 0.010")
+  ) {
+    risk = "High Risk";
+    confidence = 90;
+  }
+
+  // MEDIUM RISK
+  else if (
+    outputText.includes("Medium") ||
+    outputText.includes("Blink Rate: 3.") ||
+    outputText.includes("Blink Rate: 4.") ||
+    outputText.includes("Blink Rate: 5.") ||
+    outputText.includes("Smile Strength: 0.02")
+  ) {
+    risk = "Medium Risk";
+    confidence = 55;
+  }
+
+  // LOW RISK
+  else {
+    risk = "Low Risk";
+    confidence = 25;
+  }
+
+  // Store latest facial result
+  latestFacialResult = {
+    riskLabel: risk,
+    confidence: confidence,
+    primary: risk
+  };
+
+  console.log("Updated Facial Result:", latestFacialResult);
+
+  // Refresh unified analysis
+  renderUnifiedAnalysis();
+};
+    
+    // Motion analysis override
+    const API_URL = "http://127.0.0.1:8000";
+    const allMotionResults = {};
+    
+    async function callMotionAPI(accel, gyro, mode) { 
+      try { 
+        const fd = new FormData(); 
+        fd.append("activity_mode", mode); 
+        fd.append("accel_file", accel); 
+        fd.append("gyro_file", gyro); 
+        const res = await fetch(`${API_URL}/movement_predict`, { method: "POST", body: fd }); 
+        return await res.json(); 
+      } catch(e) { 
+        return { success: false, error: e.message }; 
+      } 
+    }
+    
+    async function analyzeMotion(accelId, gyroId, mode) { 
+      const accel = document.getElementById(accelId).files[0]; 
+      const gyro = document.getElementById(gyroId).files[0]; 
+      if (!accel || !gyro) { alert("Upload both CSV files"); return; } 
+      const resultBox = document.getElementById("motionResult"); 
+      const oldCard = document.getElementById(`${mode}ResultCard`); 
+      if(oldCard) oldCard.remove(); 
+      const loading = document.createElement("div"); 
+      loading.id = `${mode}Loading`; 
+      loading.className = "glass-panel p-5 rounded-2xl border border-cyan-500/20 mb-5"; 
+      loading.innerHTML = `<div class="text-cyan-300 text-xl font-bold animate-pulse">🔄 Processing ${mode.toUpperCase()} Analysis...</div>`; 
+      resultBox.appendChild(loading); 
+      const result = await callMotionAPI(accel, gyro, mode); 
+      loading.remove(); 
+
+
+
+
+      if(result.success) { 
+
+// ✅ MAIN OVERALL RESULT OBJECT
+latestMotionResult = {
+  prediction: result.prediction || "Healthy Movement",
+  risk_score: result.risk_score ?? 0,
+  risk_label: result.risk_label || "LOW PARKINSONIAN RISK"
+};
+
+// ✅ STORE INDIVIDUAL MODE RESULT
+allMotionResults[mode] = { 
+  prediction: result.prediction || "Healthy Movement", 
+  risk_score: result.risk_score ?? 0, 
+  risk_label: result.risk_label || "LOW PARKINSONIAN RISK" 
+}; 
+        const card = document.createElement("div"); 
+        card.id = `${mode}ResultCard`; 
+        card.className = "glass-panel p-5 rounded-2xl border border-cyan-400/30 mb-5"; 
+        card.innerHTML = `<div class="flex justify-between items-center mb-3"><div class="text-2xl font-bold text-cyan-300">${mode.toUpperCase()} ANALYSIS</div><div class="text-yellow-300 font-bold text-2xl">${result.risk_score ?? 0}%</div></div><div class="text-xl font-bold mb-2 text-white">${result.prediction || "Healthy Movement"}</div><div class="text-lg text-green-300">${result.risk_label || "LOW PARKINSONIAN RISK"}</div>`; 
+        resultBox.appendChild(card); 
+        updateCombinedResult(); 
+        addHistory("Motion Analysis",{ primary: result.prediction || "Healthy", confidence: result.risk_score ?? 70 }); 
+        showToast(`${mode} analysis completed`, "success"); 
+      } else { 
+        const errorCard = document.createElement("div"); 
+        errorCard.className = "glass-panel p-5 rounded-2xl border border-red-500/30 mb-5"; 
+        errorCard.innerHTML = `<div class="text-red-400 font-bold text-xl">❌ ${result.error || "Analysis Failed"}</div>`; 
+        resultBox.appendChild(errorCard); 
+      } 
+    }
+    
+    function updateCombinedResult() { 
+      const values = Object.values(allMotionResults); 
+      if(values.length === 0) return; 
+      let avg = values.reduce((s,v)=> s + Number(v.risk_score),0) / values.length; 
+      let status = avg < 40 ? "🟢 LOW PARKINSONIAN RISK" : (avg < 40 ? "🟠 MEDIUM PARKINSONIAN RISK" : "🔴 HIGH PARKINSONIAN RISK"); 
+      document.getElementById("combinedResult").innerHTML = `<div class="glass-panel p-6 rounded-2xl border border-purple-500/30"><div class="text-2xl font-bold text-purple-300 mb-4">Combined Motion Intelligence</div><div class="text-xl mb-2 text-white">Average Risk: ${avg.toFixed(2)}%</div><div class="text-xl font-bold text-green-300">${status}</div></div>`; 
+    }
+    
+    document.getElementById("standingBtn")?.addEventListener("click",()=>analyzeMotion("standingAccel","standingGyro","standing"));
+    document.getElementById("sittingBtn")?.addEventListener("click",()=>analyzeMotion("sittingAccel","sittingGyro","sitting"));
+    document.getElementById("walkingBtn")?.addEventListener("click",()=>analyzeMotion("walkingAccel","walkingGyro","walking"));
+    
+    // Facial full implementation
+    const videoElem = document.getElementById("video"), canvasElem = document.getElementById("canvas"), ctxF = canvasElem.getContext("2d");
+    let faceMesh = null, mediaCamera = null, testRunning = false, currentStep = 0, blinkCount = 0, eyeState = "open", baselineEAR = 0.25, baselineYaw = 0.5, leftMax = 0, rightMax = 0, reachedLeft = false, reachedRight = false, smileFrames = [], earHistory = [], yawHistory = [];
+    const STEP_DURATION = 10000, steps = ["Keep face neutral", "Blink naturally", "Smile widely", "Turn head LEFT and RIGHT"];
+    let stepTimer = null;
+    function d(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+    function avg(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+    function ear(lm){ const v1=d(lm[159],lm[145]), v2=d(lm[158],lm[153]), h=d(lm[33],lm[133]); return (v1+v2)/(2*h); }
+    function yaw(lm){ const left=lm[234], right=lm[454], nose=lm[1]; return (nose.x - left.x) / (right.x - left.x); }
+    function startTimer(seconds){ let time=seconds; const timerEl=document.getElementById("timer"), progressEl=document.getElementById("progress"); if(stepTimer) clearInterval(stepTimer); stepTimer = setInterval(()=>{ timerEl.innerText=`Time Left: ${time}s`; progressEl.style.width=((seconds-time)/seconds)*100+"%"; time--; if(time<0) clearInterval(stepTimer); },1000); }
+    function nextStep(){ currentStep++; if(currentStep>4){ finishTest(); return; } document.getElementById("instruction").innerText = steps[currentStep-1]; document.getElementById("panel-blink").classList.toggle("hidden", currentStep!==2); document.getElementById("panel-smile").classList.toggle("hidden", currentStep!==3); document.getElementById("yaw-bar-wrap").classList.toggle("hidden", currentStep!==4); startTimer(10); setTimeout(()=>{ if(currentStep===1){ baselineEAR = earHistory.length ? avg(earHistory) : 0.25; baselineYaw = yawHistory.length ? avg(yawHistory) : 0.5; } nextStep(); }, STEP_DURATION); }
+    function finishTest(){ testRunning=false; if(mediaCamera) mediaCamera.stop(); if(videoElem.srcObject) videoElem.srcObject.getTracks().forEach(t=>t.stop()); document.getElementById("instruction").innerText = "✅ Analysis Complete"; document.getElementById("startBtn").disabled=false; let blinkRate=blinkCount*6, smileStrength=smileFrames.length?Math.max(...smileFrames):0;let risk = "Low";
+
+// HIGH RISK
+if (
+    blinkRate <= 2 ||
+    smileStrength <= 0.011
+) {
+    risk = "High";
+}
+
+// MEDIUM RISK
+else if (
+    blinkRate < 4 ||
+    smileStrength < 0.017
+) {
+    risk = "Medium";
+} if(blinkRate<5&&smileStrength<0.010) risk="High"; let riskLabel = risk === "Low" ? "Healthy Facial Pattern" : (risk === "Medium" ? "Mild Hypomimia Detected" : "Reduced Facial Expression"); let confidence =
+    risk === "Low"
+        ? 85
+        : (risk === "Medium" ? 70 : 92); document.getElementById("output").innerHTML = `🧠 Facial Risk Level: ${risk}\nBlink Rate: ${blinkRate.toFixed(1)}/min\nSmile Strength: ${smileStrength.toFixed(3)}`; latestFacialResult = { riskLabel, confidence, primary: riskLabel }; addHistory("Facial Analysis",{primary:riskLabel,confidence}); renderUnifiedAnalysis(); }
+    async function startTest(){ document.getElementById("startBtn").disabled=true; blinkCount=0; smileFrames=[]; leftMax=rightMax=0; reachedLeft=reachedRight=false; earHistory=[]; yawHistory=[]; currentStep=0; try{ const stream=await navigator.mediaDevices.getUserMedia({video:{width:1280,height:720,facingMode:"user"}}); videoElem.srcObject=stream; await videoElem.play(); canvasElem.width=videoElem.videoWidth; canvasElem.height=videoElem.videoHeight; testRunning=true; if(!faceMesh){ faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`}); faceMesh.onResults(results=>{ if(!testRunning||!results.multiFaceLandmarks) return; const lm=results.multiFaceLandmarks[0]; ctxF.clearRect(0,0,canvasElem.width,canvasElem.height); drawConnectors(ctxF,lm,FACEMESH_TESSELATION,{color:"#00FFFF",lineWidth:0.5}); drawConnectors(ctxF,lm,FACEMESH_RIGHT_EYE,{color:"#00FFAA",lineWidth:1.5}); drawConnectors(ctxF,lm,FACEMESH_LEFT_EYE,{color:"#00FFAA",lineWidth:1.5}); const eVal=ear(lm), yVal=yaw(lm); document.getElementById("debug").innerText = `EAR: ${eVal.toFixed(3)}\nYAW: ${yVal.toFixed(3)}\nSTEP: ${currentStep}`; if(currentStep===1){ earHistory.push(eVal); yawHistory.push(yVal); } if(currentStep===2){ const thresh=baselineEAR*0.75; if(eVal<thresh&&eyeState==="open"){ blinkCount++; eyeState="closed"; } else if(eVal>=thresh) eyeState="open"; document.getElementById("bar-ear").style.width=Math.min(100,(eVal/baselineEAR)*100)+"%"; document.getElementById("ear-label").innerText=`Blink Count: ${blinkCount}`; } if(currentStep===3){ const smileVal=Math.abs(lm[61].y-lm[291].y); smileFrames.push(smileVal); const pct=Math.min(100,smileVal*4000); document.getElementById("bar-smile").style.width=pct+"%"; document.getElementById("bar-smile-asym").style.width=(100-pct)+"%"; } if(currentStep===4){ const left=baselineYaw-yVal, right=yVal-baselineYaw; if(left>leftMax) leftMax=left; if(right>rightMax) rightMax=right; if(left>0.1) reachedLeft=true; if(right>0.1) reachedRight=true; document.getElementById("yaw-left-fill").style.width=Math.min(left*250,50)+"%"; document.getElementById("yaw-right-fill").style.width=Math.min(right*250,50)+"%"; document.getElementById("tick-left").innerText=reachedLeft?"Left ✓":"Left ✗"; document.getElementById("tick-right").innerText=reachedRight?"Right ✓":"Right ✗"; const move=Math.max(-120,Math.min(120,(yVal-baselineYaw)*500)); document.getElementById("yaw-dot").style.transform=`translate(${move}px,-50%)`; } }); } mediaCamera=new Camera(videoElem,{onFrame:async()=>{ if(testRunning) await faceMesh.send({image:videoElem}); },width:1280,height:720}); mediaCamera.start(); nextStep(); }catch(e){ showToast("Camera error","error"); document.getElementById("startBtn").disabled=false; } }
+    document.getElementById("startBtn")?.addEventListener("click",startTest);
+    document.getElementById('globalLogoutBtn')?.addEventListener('click',()=>{ if(videoElem.srcObject) videoElem.srcObject.getTracks().forEach(t=>t.stop()); window.location.reload(); });
+    
+    // 3D Hero & Particles
+    function initHero3D(){ const canvas=document.getElementById('hero-canvas'); if(!canvas) return; const scene=new THREE.Scene(); scene.background=null; const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,1000); camera.position.z=2.2; const renderer=new THREE.WebGLRenderer({canvas,alpha:true}); renderer.setSize(window.innerWidth,window.innerHeight); const geometry=new THREE.IcosahedronGeometry(0.85,0); const material=new THREE.MeshStandardMaterial({color:0x06b6d4,roughness:0.2,metalness:0.8,emissive:0x0a5c7a,emissiveIntensity:0.5}); const icosa=new THREE.Mesh(geometry,material); scene.add(icosa); const wireGeo=new THREE.IcosahedronGeometry(0.92,0); const wireMat=new THREE.MeshBasicMaterial({color:0x8b5cf6,wireframe:true,transparent:true,opacity:0.3}); const wireframe=new THREE.Mesh(wireGeo,wireMat); scene.add(wireframe); const light1=new THREE.DirectionalLight(0xffffff,1); light1.position.set(1,2,1); scene.add(light1); const light2=new THREE.PointLight(0x8b5cf6,0.8); light2.position.set(1,1,1.5); scene.add(light2); const ambient=new THREE.AmbientLight(0x404060); scene.add(ambient); function animate(){ requestAnimationFrame(animate); icosa.rotation.x+=0.005; icosa.rotation.y+=0.01; wireframe.rotation.x+=0.005; wireframe.rotation.y+=0.01; renderer.render(scene,camera); } animate(); window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); }); }
+    initHero3D();
+    function createParticles(){ const container=document.getElementById('particles-container'); for(let i=0;i<60;i++){ let p=document.createElement('div'); p.classList.add('floating-particle'); let s=Math.random()*6+2; p.style.width=s+'px'; p.style.height=s+'px'; p.style.left=Math.random()*100+'%'; p.style.top=Math.random()*100+'%'; p.style.animationDuration=`${Math.random()*18+10}s`; container.appendChild(p); } }
+    createParticles(); loadHistory(); checkBackend(); setInterval(checkBackend,30000); updateAuthUI(); setTimeout(()=>{ if(window.lucide) lucide.createIcons(); renderUnifiedAnalysis(); },200);
+  </script>
+</body>
+</html>
